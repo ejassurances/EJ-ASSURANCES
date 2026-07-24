@@ -23,6 +23,8 @@ import {
   Search,
   Building2,
   Bike,
+  ClipboardCheck,
+  UserPlus,
   Menu,
   X,
 } from "lucide-react";
@@ -187,10 +189,47 @@ const clientModules: NavLink[] = [
   { label: "Messages", href: "/client#messages", icon: Bell },
 ];
 
+// Navigation dédiée mandataire (les liens de section pointent vers le dashboard).
+const mandataireModules: NavLink[] = [
+  { label: "Tableau de bord", href: "/mandataire", icon: LayoutDashboard },
+  { label: "Recueil des besoins", href: "/mandataire/recueil-besoins", icon: ClipboardCheck },
+  { label: "Mes clients", href: "/mandataire#mandataire-clients", icon: Users },
+  { label: "Conformité", href: "/mandataire#conformite", icon: ShieldCheck },
+];
+
+// Navigation dédiée prescripteur : pas de classeur ACPR, mais un KYC.
+const prescripteurModules: NavLink[] = [
+  { label: "Tableau de bord", href: "/prescripteur", icon: LayoutDashboard },
+  { label: "Déposer un prospect", href: "/prescripteur#depot", icon: UserPlus },
+  { label: "Suivi prospects", href: "/prescripteur#prospects", icon: FolderOpen },
+  { label: "KYC", href: "/prescripteur#kyc", icon: ShieldCheck },
+  { label: "Convention", href: "/prescripteur#convention", icon: FileText },
+];
+
+const nonAdminNavByRole: Record<string, NavLink[]> = {
+  client: clientModules,
+  mandataire: mandataireModules,
+  prescripteur: prescripteurModules,
+};
+
 export function AppShell({ role, user, children }: AppShellProps) {
   const pathname = usePathname() ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
   const isAdmin = role === "admin" || role === "courtier";
+  const nonAdminNav = nonAdminNavByRole[role] ?? clientModules;
+  const spaceLabel = isAdmin
+    ? "Espace cabinet"
+    : role === "mandataire"
+      ? "Espace mandataire"
+      : role === "prescripteur"
+        ? "Espace prescripteur"
+        : "Espace client";
+  const settingsHref =
+    role === "mandataire"
+      ? "/mandataire#parametres"
+      : role === "prescripteur"
+        ? "/prescripteur#parametres"
+        : "/client#parametres";
   const isLinkActive = (href: string) => pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`));
   const closeMenu = () => setMenuOpen(false);
   const nameParts = user.fullName.trim().split(/\s+/).filter(Boolean);
@@ -215,7 +254,7 @@ export function AppShell({ role, user, children }: AppShellProps) {
             priority
           />
           <span className="app-brand-title">
-            <small>{isAdmin ? "Espace cabinet" : "Espace client"}</small>
+            <small>{spaceLabel}</small>
           </span>
         </Link>
 
@@ -254,7 +293,7 @@ export function AppShell({ role, user, children }: AppShellProps) {
               })}
             </>
           ) : (
-            clientModules.map((item) => {
+            nonAdminNav.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href;
               return (
@@ -271,7 +310,7 @@ export function AppShell({ role, user, children }: AppShellProps) {
           {!isAdmin && (
             <>
               <div className="side-nav-divider" />
-              <Link href="/client#parametres" onClick={closeMenu}>
+              <Link href={settingsHref} onClick={closeMenu}>
                 <Settings size={15} aria-hidden />
                 Paramètres
               </Link>
