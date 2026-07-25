@@ -3111,7 +3111,7 @@ h3 { font-size: clamp(18px, 2vw, 24px); letter-spacing: -.01em; }
 .cf360 { display: flex; flex-direction: column; gap: 0; }
 
 /* Hero */
-.cf360-hero { display: flex; align-items: flex-start; gap: 20px; padding: 28px 32px; background: linear-gradient(135deg, var(--navy) 0%, #2d5a8e 100%); border-radius: 16px 16px 0 0; color: white; flex-wrap: wrap; }
+.cf360-hero { display: flex; align-items: flex-start; gap: 20px; padding: 28px 32px; background: linear-gradient(135deg, var(--navy) 0%, var(--navy-soft) 100%); border-radius: 16px 16px 0 0; color: white; flex-wrap: wrap; }
 .cf360-hero-avatar { width: 64px; height: 64px; border-radius: 18px; background: rgba(255,255,255,.15); backdrop-filter: blur(10px); display: grid; place-items: center; font-size: 24px; font-weight: 800; color: white; flex-shrink: 0; border: 2px solid rgba(255,255,255,.25); letter-spacing: -.02em; }
 .cf360-hero-info { flex: 1; min-width: 0; }
 .cf360-hero-name-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -3161,7 +3161,7 @@ h3 { font-size: clamp(18px, 2vw, 24px); letter-spacing: -.01em; }
 .cf360-add-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--navy); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; transition: background .2s, transform .15s; }
 .cf360-add-btn:hover { background: var(--navy-soft); transform: translateY(-1px); }
 .cf360-delete-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1.5px solid var(--line); border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; transition: color .15s, border-color .15s, background .15s; flex-shrink: 0; }
-.cf360-delete-btn:hover { color: #dc2626; border-color: #dc2626; background: #fee2e2; }
+.cf360-delete-btn:hover { color: var(--bo-danger); border-color: var(--bo-danger-bd); background: var(--bo-danger-bg); }
 .cf360-inline-form { background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
 .cf360-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 48px 20px; text-align: center; color: var(--muted); }
 .cf360-empty p { font-size: 14px; margin: 0; max-width: 320px; }
@@ -3214,7 +3214,7 @@ h3 { font-size: clamp(18px, 2vw, 24px); letter-spacing: -.01em; }
 .cf360-contract-card:hover { border-color: var(--navy); box-shadow: 0 4px 16px rgba(30,58,95,.08); }
 .cf360-contract-card-top { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); gap: 12px; }
 .cf360-contract-card-left { display: flex; align-items: center; gap: 12px; }
-.cf360-contract-icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1e40af; display: grid; place-items: center; flex-shrink: 0; }
+.cf360-contract-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--bo-teal-050); color: var(--accent-strong); display: grid; place-items: center; flex-shrink: 0; }
 .cf360-contract-type { display: block; font-size: 15px; font-weight: 700; color: var(--navy); }
 .cf360-contract-insurer { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 2px; }
 .cf360-contract-card-right { display: flex; align-items: center; gap: 10px; }
