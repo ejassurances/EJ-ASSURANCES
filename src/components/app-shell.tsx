@@ -61,6 +61,7 @@ const adminModules: AdminModule[] = [
     links: [
       { label: "Tableau de bord", href: "/admin", icon: LayoutDashboard },
       { label: "Clients", href: "/admin/clients", icon: Users },
+      { label: "Contrats", href: "/admin/contrats", icon: FileText },
       { label: "Partenaires", href: "/admin/partenaires", icon: Building2 },
       // Masqués — modules non développés (Agenda 213, Activités/Tâches 202, Contacts).
       { label: "Contacts & Prospects", href: "/admin/crm/contacts", icon: Users, hidden: true },

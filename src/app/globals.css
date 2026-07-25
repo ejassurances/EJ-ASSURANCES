@@ -4234,6 +4234,20 @@ h3 { font-size: clamp(18px, 2vw, 24px); letter-spacing: -.01em; }
 .app-layout .bo-kpi.is-soon .bo-kpi-ic { background: var(--bo-surface-3); color: var(--bo-muted); }
 .app-layout .bo-kpi.is-soon .bo-kpi-val { color: var(--bo-faint); font-weight: 600; }
 
+/* Tableau (listes contrats / portefeuille) */
+.app-layout .bo-table-wrap { overflow-x: auto; }
+.app-layout .bo-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.app-layout .bo-table thead th { text-align: left; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bo-muted); padding: 12px 18px; border-bottom: 1px solid var(--bo-border); white-space: nowrap; }
+.app-layout .bo-table tbody td { padding: 13px 18px; border-bottom: 1px solid var(--bo-border); vertical-align: middle; color: var(--bo-ink); }
+.app-layout .bo-table tbody tr:last-child td { border-bottom: none; }
+.app-layout .bo-table tbody tr:hover { background: var(--bo-surface-2); }
+.app-layout .bo-table .ta-r { text-align: right; }
+.app-layout .bo-table-main { display: block; font-weight: 600; color: var(--bo-ink); }
+.app-layout .bo-table-main:hover { color: var(--bo-teal); }
+.app-layout .bo-table-sub { display: block; font-size: 12px; color: var(--bo-faint); margin-top: 1px; }
+.app-layout .bo-table-go { display: inline-flex; color: var(--bo-faint); }
+.app-layout .bo-table-go:hover { color: var(--bo-teal); }
+
 /* Cartes */
 .app-layout .bo-card { background: var(--bo-surface); border: 1px solid var(--bo-border); border-radius: 14px; box-shadow: var(--bo-shadow-sm); }
 .app-layout .bo-card-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--bo-border); }
@@ -4370,6 +4384,14 @@ h3 { font-size: clamp(18px, 2vw, 24px); letter-spacing: -.01em; }
 .app-layout .bo-fichehead h1 { font-size: 22px; font-weight: 750; color: var(--bo-ink); }
 .app-layout .bo-fichehead .sub { margin: 4px 0 0; color: var(--bo-muted); font-size: 13.5px; }
 .app-layout .bo-fichehead-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.app-layout .bo-fichehead-sub { margin: 4px 0 0; color: var(--bo-muted); font-size: 13.5px; }
+
+/* Paires clé/valeur (détail contrat, fiches) */
+.app-layout .bo-kvgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; }
+.app-layout .bo-kv { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.app-layout .bo-kv-l { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bo-muted); }
+.app-layout .bo-kv-v { font-size: 14px; color: var(--bo-ink); font-weight: 600; }
+@media (max-width: 560px) { .app-layout .bo-kvgrid { grid-template-columns: 1fr; } }
 .app-layout .bo-btn-secondary { background: var(--bo-surface); color: var(--bo-text); border-color: var(--bo-border-strong); }
 .app-layout .bo-btn-secondary:hover { background: var(--bo-surface-2); border-color: var(--bo-muted); }
 .app-layout .bo-btn-danger-soft { background: var(--bo-surface); color: var(--bo-danger); border-color: var(--bo-danger-bd); }
