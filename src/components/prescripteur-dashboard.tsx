@@ -2,11 +2,11 @@ import {
   BadgeCheck,
   ChevronRight,
   FolderOpen,
-  HandCoins,
   ShieldCheck,
   UserPlus,
 } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ProspectDepositForm } from "@/components/prospect-deposit-form";
 import { CurrentUser } from "@/lib/auth";
 
 const prescripteurModules = [
@@ -52,17 +52,8 @@ export function PrescripteurDashboard({ user }: { user: CurrentUser }) {
         </div>
       </div>
 
-      {/* Dépôt — action principale mise en avant */}
-      <div id="depot" className="bo-ec-sign">
-        <span className="bo-ec-sign-ic"><HandCoins size={22} aria-hidden /></span>
-        <div>
-          <h2>Déposer un nouveau prospect</h2>
-          <p>Communiquez-nous un contact intéressé — nous le qualifions et vous suivez son avancement ici.</p>
-        </div>
-        <a className="bo-ec-sign-btn" href="mailto:contact@ej-assurances.fr?subject=Nouveau%20prospect">
-          Transmettre un contact <ChevronRight size={15} aria-hidden />
-        </a>
-      </div>
+      {/* Dépôt — formulaire fonctionnel */}
+      <ProspectDepositForm />
 
       {/* KPI — empty-state honnête tant que la source prospects n'est pas branchée */}
       <div className="bo-kpirow" aria-label="Indicateurs prescripteur">

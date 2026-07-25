@@ -4351,6 +4351,23 @@ h3 { font-size: clamp(18px, 2vw, 24px); letter-spacing: -.01em; }
 .app-layout .bo-reset { display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--bo-muted); padding: 9px 10px; }
 .app-layout .bo-reset:hover { color: var(--bo-danger); }
 
+/* Formulaires (dépôt prospect, etc.) */
+.app-layout .bo-form { display: grid; gap: 14px; }
+.app-layout .bo-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.app-layout .bo-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.app-layout .bo-label { font-size: 12.5px; font-weight: 700; color: var(--bo-muted); }
+.app-layout .bo-input { width: 100%; background: var(--bo-surface); border: 1px solid var(--bo-border-strong); border-radius: 9px; padding: 10px 12px; font-size: 13.5px; color: var(--bo-ink); font-family: inherit; outline: none; transition: border-color .14s, box-shadow .14s; }
+.app-layout .bo-input:focus { border-color: var(--bo-teal); box-shadow: 0 0 0 3px var(--bo-teal-050); }
+.app-layout .bo-input::placeholder { color: var(--bo-faint); }
+.app-layout .bo-textarea { resize: vertical; min-height: 76px; line-height: 1.5; }
+.app-layout .bo-form-hint { font-size: 12px; color: var(--bo-faint); margin: 0; }
+.app-layout .bo-form-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.app-layout .bo-formerror { background: var(--bo-danger-bg); border: 1px solid var(--bo-danger-bd); color: var(--bo-danger); font-size: 13px; font-weight: 600; padding: 10px 12px; border-radius: 9px; margin: 0; }
+.app-layout .bo-formsuccess { display: flex; align-items: flex-start; gap: 12px; background: var(--bo-success-bg); border: 1px solid var(--bo-success-bd); border-radius: 11px; padding: 16px 18px; }
+.app-layout .bo-formsuccess-ic { color: var(--bo-success); flex-shrink: 0; }
+.app-layout .bo-formsuccess p { margin: 0; font-size: 14px; color: var(--bo-ink); font-weight: 600; }
+@media (max-width: 560px) { .app-layout .bo-form-row { grid-template-columns: 1fr; } }
+
 /* Grille de fiches client */
 .app-layout .bo-tilegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .app-layout .bo-tile { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid var(--bo-border); border-radius: 14px; background: var(--bo-surface); box-shadow: var(--bo-shadow-sm); color: inherit; transition: .14s; }
