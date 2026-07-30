@@ -58,62 +58,60 @@ export interface EmailResult {
 // Helpers
 // ─────────────────────────────────────────────
 
-// Convertir HTML en base64 pour l'API Gmail
-function encodeEmail(emailContent: string): string {
-  return Buffer.from(emailContent).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+import { createSign } from "crypto";
+
+const SENDER_NAME = "EJ Partners Assurances";
+
+// Encodage RFC 2047 du sujet (accents / caractères non-ASCII).
+function encodeSubject(subject: string): string {
+  return `=?UTF-8?B?${Buffer.from(subject, "utf8").toString("base64")}?=`;
 }
 
-// Obtenir un access token JWT pour l'API Gmail
+// Access token OAuth pour l'API Gmail via compte de service + délégation domaine
+// (impersonation de la boîte GMAIL_SENDER_EMAIL). JWT RS256 réellement signé.
 async function getGmailAccessToken(): Promise<string> {
   const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  
-  if (!serviceAccountKey) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY manquante');
+  if (!serviceAccountKey) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY manquante");
+
+  const impersonate = process.env.GMAIL_SENDER_EMAIL;
+  if (!impersonate) throw new Error("GMAIL_SENDER_EMAIL manquante");
+
+  const creds = JSON.parse(serviceAccountKey) as { client_email: string; private_key: string };
+  const now = Math.floor(Date.now() / 1000);
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+
+  const signingInput = `${b64({ alg: "RS256", typ: "JWT" })}.${b64({
+    iss: creds.client_email,
+    sub: impersonate, // délégation à l'échelle du domaine
+    scope: "https://www.googleapis.com/auth/gmail.send",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+  })}`;
+
+  const signature = createSign("RSA-SHA256")
+    .update(signingInput)
+    .sign(creds.private_key)
+    .toString("base64url");
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: `${signingInput}.${signature}`,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Erreur OAuth Gmail: ${response.status} ${await response.text()}`);
   }
-
-  try {
-    const credentials = JSON.parse(serviceAccountKey);
-    
-    // Créer un JWT
-    const header = { alg: 'RS256', typ: 'JWT' };
-    const now = Math.floor(Date.now() / 1000);
-    const claim = {
-      iss: credentials.client_email,
-      scope: 'https://www.googleapis.com/auth/gmail.send',
-      aud: 'https://oauth2.googleapis.com/token',
-      exp: now + 3600,
-      iat: now,
-    };
-    
-    const headerEncoded = Buffer.from(JSON.stringify(header)).toString('base64url');
-    const claimEncoded = Buffer.from(JSON.stringify(claim)).toString('base64url');
-    const signature = Buffer.from(`${headerEncoded}.${claimEncoded}`).toString('base64url');
-    
-    // En production, on aurait besoin de signer avec la clé privée
-    // Pour maintenant, on va utiliser une approche alternative plus simple
-    
-    // Utiliser fetch pour obtenir le token via credentials.json
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion: `${headerEncoded}.${claimEncoded}.${signature}`,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erreur OAuth: ${response.status}`);
-    }
-
-    const data = await response.json() as { access_token: string };
-    return data.access_token;
-  } catch (err) {
-    throw new Error(`Erreur authentification Gmail: ${String(err)}`);
-  }
+  const data = (await response.json()) as { access_token: string };
+  return data.access_token;
 }
 
-// Envoyer un email via Gmail API
+// Envoi réel via l'API Gmail (le message part depuis la boîte GMAIL_SENDER_EMAIL
+// et apparaît donc dans « Envoyés » de Gmail).
 async function sendEmailViaGmail(
   to: string[],
   subject: string,
@@ -121,45 +119,44 @@ async function sendEmailViaGmail(
   replyTo?: string,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
-    const senderEmail = process.env.GMAIL_SENDER_EMAIL ?? 'noreply@ej-assurances.fr';
-    
-    // Créer le message
+    const senderEmail = process.env.GMAIL_SENDER_EMAIL;
+    if (!senderEmail) return { success: false, error: "GMAIL_SENDER_EMAIL manquante" };
+
+    const token = await getGmailAccessToken();
+
     const message = [
-      `From: ${senderEmail}`,
-      `To: ${to.join(', ')}`,
-      'Content-Type: text/html; charset=utf-8',
-      'MIME-Version: 1.0',
-      `Subject: ${subject}`,
-      replyTo ? `Reply-To: ${replyTo}` : '',
-      '',
+      `From: ${SENDER_NAME} <${senderEmail}>`,
+      `To: ${to.join(", ")}`,
+      "MIME-Version: 1.0",
+      "Content-Type: text/html; charset=utf-8",
+      `Subject: ${encodeSubject(subject)}`,
+      replyTo ? `Reply-To: ${replyTo}` : "",
+      "",
       html,
     ]
       .filter(Boolean)
-      .join('\r\n');
+      .join("\r\n");
 
-    const encoded = encodeEmail(message);
+    const raw = Buffer.from(message, "utf8").toString("base64url");
 
-    // Pour cette version légère, on peut utiliser SendGrid ou une autre API
-    // Alternative: utiliser un worker Vercel Edge Function pour l'authentification OAuth
-    // Pour maintenant, retourner un succès simulé en attendant l'authentification correcte
-    
-    console.log('[Gmail] Email queued:', {
-      to,
-      subject,
-      size: html.length,
-    });
+    const response = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(senderEmail)}/messages/send`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ raw }),
+      },
+    );
 
-    return {
-      success: true,
-      id: `gmail_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    };
+    if (!response.ok) {
+      return { success: false, error: `Gmail send: ${response.status} ${await response.text()}` };
+    }
+    const data = (await response.json()) as { id?: string };
+    return { success: true, id: data.id };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[Gmail] Erreur envoi email:', message);
-    return {
-      success: false,
-      error: message,
-    };
+    console.error("[Gmail] Erreur envoi email:", message);
+    return { success: false, error: message };
   }
 }
 
