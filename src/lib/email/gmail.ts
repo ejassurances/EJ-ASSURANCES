@@ -40,6 +40,12 @@ export interface ClientRelanceData {
   fullName?: string;
 }
 
+export interface PhoneConsentRequestData {
+  email: string;
+  fullName?: string;
+  confirmUrl: string;
+}
+
 export interface EmailResult {
   success: boolean;
   id?: string;
@@ -342,4 +348,50 @@ export async function sendClientRelance(
 
   const adminEmail = process.env.GMAIL_ADMIN_EMAIL ?? 'contact@ej-assurances.fr';
   return sendEmailViaGmail([data.email], data.subject, html, adminEmail);
+}
+
+// Demande de confirmation du consentement au recontact téléphonique.
+export async function sendPhoneConsentRequest(
+  data: PhoneConsentRequestData,
+): Promise<EmailResult> {
+  const subject = "Confirmez votre accord pour être recontacté par téléphone";
+  const hello = data.fullName ? `Bonjour ${data.fullName},` : "Bonjour,";
+  const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #0a193c 0%, #173b5c 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align: center; }
+    .content { background: white; padding: 24px; border: 1px solid #e0e0e0; border-radius: 0 0 8px 8px; }
+    .btn { display: inline-block; background: #0a193c; color: #ffffff !important; text-decoration: none; font-weight: 700; padding: 13px 22px; border-radius: 8px; margin: 18px 0; }
+    .footer { color: #666; font-size: 12px; text-align: center; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1 style="margin:0;">Votre consentement téléphonique</h1></div>
+    <div class="content">
+      <p>${hello}</p>
+      <p>Conformément à la réglementation, nous avons besoin de votre accord explicite pour
+      pouvoir vous recontacter <strong>par téléphone</strong> au sujet de votre projet d'assurance.</p>
+      <p>Si vous acceptez d'être joint par téléphone par le cabinet EJ Partners Assurances,
+      merci de le confirmer :</p>
+      <p style="text-align:center;"><a class="btn" href="${data.confirmUrl}">Je confirme mon accord</a></p>
+      <p style="color:#666;font-size:13px;">Sans confirmation de votre part, nous ne vous
+      contacterons pas par téléphone. Vous pouvez ignorer cet email si vous ne le souhaitez pas.</p>
+    </div>
+    <div class="footer">
+      <p>Cabinet de courtage indépendant en assurance</p>
+      <p><a href="https://www.ej-assurances.fr">www.ej-assurances.fr</a></p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+  const adminEmail = process.env.GMAIL_ADMIN_EMAIL ?? 'contact@ej-assurances.fr';
+  return sendEmailViaGmail([data.email], subject, html, adminEmail);
 }
