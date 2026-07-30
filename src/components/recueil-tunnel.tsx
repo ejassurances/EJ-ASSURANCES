@@ -29,6 +29,7 @@ export function RecueilTunnel({ config }: { config: RecueilConfig }) {
   const [identity, setIdentity] = useState({ full_name: "", email: "", phone: "" });
   const [recontact, setRecontact] = useState(false);
   const [partner, setPartner] = useState(false);
+  const [phone, setPhone] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -70,6 +71,7 @@ export function RecueilTunnel({ config }: { config: RecueilConfig }) {
       answersSummary: `${config.productLabel}. ${answersSummary}`,
       recontactConsent: recontact,
       partnerConsent: partner,
+      phoneConsent: phone,
       honeypot: honeypot.current?.value || "",
       renderedAt: renderedAt.current,
     });
@@ -187,6 +189,10 @@ export function RecueilTunnel({ config }: { config: RecueilConfig }) {
           <label className="form-field" style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
             <input type="checkbox" checked={recontact} onChange={(e) => setRecontact(e.target.checked)} style={{ marginTop: 3 }} />
             <span>J'accepte d'être recontacté par EJ Partners Assurances au sujet de ma demande.</span>
+          </label>
+          <label className="form-field" style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+            <input type="checkbox" checked={phone} onChange={(e) => setPhone(e.target.checked)} style={{ marginTop: 3 }} />
+            <span>J'accepte d'être recontacté <strong>par téléphone</strong> par EJ Partners Assurances au sujet de ma demande.</span>
           </label>
           <label className="form-field" style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
             <input type="checkbox" checked={partner} onChange={(e) => setPartner(e.target.checked)} style={{ marginTop: 3 }} />

@@ -113,6 +113,10 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
             <input name="consent" type="checkbox" required className="mt-1 size-4 accent-[#3B82F6]" />
             J'accepte d'être recontacté par EJ Partners Assurances au sujet de ma demande.
           </label>
+          <label className="flex gap-3 text-sm leading-6 text-[#475569]">
+            <input name="phoneConsent" type="checkbox" className="mt-1 size-4 accent-[#3B82F6]" />
+            J'accepte d'être recontacté <strong className="font-bold">par téléphone</strong> par EJ Partners Assurances.
+          </label>
 
           <button type="submit" className="btn-primary mt-2 w-full text-white">
             Envoyer ma demande

@@ -48,10 +48,16 @@ export async function createContactIntakeAction(formData: FormData) {
   const need = value(formData, "need");
   const message = value(formData, "message");
   const recontactConsent = checked(formData, "consent");
+  const phoneConsent = checked(formData, "phoneConsent");
 
   if (!fullName || !email || !recontactConsent) {
     redirect("/contact?error=missing");
   }
+
+  // Consentement démarchage téléphonique : tracé dans le message transmis au cabinet
+  // (le contact simple ne crée pas de fiche — cf. politique anti faux comptes).
+  const messageWithConsent =
+    `${message}\n\n[Consentement téléphone : ${phoneConsent ? "OUI" : "NON"}]`.trim();
 
   // Contact « simple » : AUCUN compte ni fiche prospect n'est créé automatiquement
   // (décision anti faux comptes). On notifie le cabinet et on confirme au visiteur.
@@ -59,7 +65,7 @@ export async function createContactIntakeAction(formData: FormData) {
   // dédié (tunnels emprunteur / assurance vie / prévoyance individuelle).
   await Promise.allSettled([
     sendContactConfirmation({ fullName, email, phone, need, message }),
-    sendAdminNotification({ fullName, email, phone, need, familySituation, urgency, message }),
+    sendAdminNotification({ fullName, email, phone, need, familySituation, urgency, message: messageWithConsent }),
   ]);
 
   redirect("/contact?success=1");

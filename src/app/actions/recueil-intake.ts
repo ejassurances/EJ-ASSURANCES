@@ -17,6 +17,7 @@ export type RecueilPayload = {
   answersSummary: string;
   recontactConsent: boolean;
   partnerConsent?: boolean;
+  phoneConsent?: boolean;
   // anti-bot
   honeypot?: string;
   renderedAt: number;
@@ -149,6 +150,14 @@ export async function submitRecueilAction(payload: RecueilPayload): Promise<Recu
       consent_text: "J'accepte d'etre recontacte par EJ Assurances ou l'un de ses partenaires.",
       accepted: Boolean(payload.partnerConsent),
       accepted_at: payload.partnerConsent ? new Date().toISOString() : null,
+    },
+    {
+      assessment_id: assessment?.id ?? null,
+      client_id: client.id,
+      consent_type: "phone_recontact",
+      consent_text: "J'accepte d'etre recontacte par telephone par EJ Assurances.",
+      accepted: Boolean(payload.phoneConsent),
+      accepted_at: payload.phoneConsent ? new Date().toISOString() : null,
     },
   ]);
 
