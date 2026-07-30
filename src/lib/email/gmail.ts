@@ -346,6 +346,16 @@ export async function sendClientRelance(
   return sendEmailViaGmail([data.email], data.subject, html, adminEmail);
 }
 
+// Envoi générique depuis le CRM (email libre rédigé par un conseiller).
+export async function sendCrmEmail(params: {
+  to: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+}): Promise<EmailResult> {
+  return sendEmailViaGmail([params.to], params.subject, params.html, params.replyTo);
+}
+
 // Demande de confirmation du consentement au recontact téléphonique.
 export async function sendPhoneConsentRequest(
   data: PhoneConsentRequestData,
