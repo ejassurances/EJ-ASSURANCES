@@ -3,6 +3,7 @@ import { Mail, Phone } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { createContactIntakeAction } from "@/app/actions/contact-intake";
+import { nowMs } from "@/lib/rate-limit";
 
 /* Page contact : formulaire courtier assurance emprunteur en glass-card Navy Fintech. */
 export const metadata: Metadata = {
@@ -19,6 +20,8 @@ type ContactPageProps = {
 
 export default async function ContactPage({ searchParams }: ContactPageProps) {
   const { success, error } = await searchParams;
+  // Horodatage de rendu (Server Component, calculé une fois par requête) pour l'anti-bot.
+  const renderedAt = nowMs();
 
   return (
     <>
@@ -95,6 +98,16 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
           <input type="hidden" name="familySituation" value="Diagnostic protection familiale" />
           <input type="hidden" name="need" value="Assurance emprunteur ou transmission parent social" />
           <input type="hidden" name="urgency" value="Projet en cours" />
+
+          {/* Anti-bot : horodatage de rendu (détecte les soumissions trop rapides). */}
+          <input type="hidden" name="t" value={renderedAt} />
+          {/* Anti-bot : honeypot — invisible pour un humain, souvent rempli par les bots. */}
+          <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }}>
+            <label>
+              Ne pas remplir ce champ
+              <input type="text" name="company_url" tabIndex={-1} autoComplete="off" />
+            </label>
+          </div>
 
           <label className="flex gap-3 text-sm leading-6 text-[#475569]">
             <input name="consent" type="checkbox" required className="mt-1 size-4 accent-[#3B82F6]" />
