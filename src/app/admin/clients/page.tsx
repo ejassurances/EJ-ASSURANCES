@@ -8,15 +8,10 @@ import {
   Users, UserPlus, Search, Phone, Mail, FileText,
   ChevronRight, TrendingUp, Filter, Star
 } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { clientStatus } from "@/components/ui/status-maps";
 
 export const metadata: Metadata = { title: "Clients 360° — CRM EJ Partners" };
-
-const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
-  prospect: { label: "Prospect", cls: "bo-badge-warning" },
-  actif:    { label: "Client actif", cls: "bo-badge-success" },
-  en_cours: { label: "En cours", cls: "bo-badge-info" },
-  inactif:  { label: "Inactif", cls: "bo-badge-neutral" },
-};
 
 const FAMILY_ICONS: Record<string, string> = {
   "coparentalité": "👨‍👩‍👧",
@@ -179,7 +174,7 @@ export default async function AdminClientsPage({
           {clients.map((client) => {
             const statut_client = (client as { statut_client?: string }).statut_client ?? "prospect";
             const contact_type = (client as { contact_type?: string }).contact_type ?? "prospect";
-            const statusCfg = STATUT_BADGE[statut_client] ?? STATUT_BADGE.prospect;
+            const statusCfg = clientStatus[statut_client] ?? clientStatus.prospect;
             const contactTypeLabel: Record<string, string> = {
               prospect: "🎯 Prospect", client: "⭐ Client",
               partenaire: "🤝 Partenaire", prescripteur: "📣 Prescripteur",
@@ -199,7 +194,7 @@ export default async function AdminClientsPage({
                   </div>
                   <div className="bo-tile-badges">
                     <span className="bo-tile-type">{contactTypeLabel[contact_type] ?? contact_type}</span>
-                    <span className={`bo-badge ${statusCfg.cls}`}><span className="d" />{statusCfg.label}</span>
+                    <StatusBadge tone={statusCfg.tone} label={statusCfg.label} />
                   </div>
                 </div>
 

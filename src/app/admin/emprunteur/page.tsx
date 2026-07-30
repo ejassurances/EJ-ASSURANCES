@@ -142,7 +142,7 @@ export default async function AdminEmprunteurPage() {
       {dossiers.length === 0 && (
         <div className="emprunteur-empty">
           <p>Aucun dossier emprunteur reçu pour l&apos;instant.</p>
-          <p style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "8px" }}>
+          <p style={{ fontSize: "14px", color: "var(--muted)", marginTop: "8px" }}>
             Les prospects remplissant le formulaire public apparaîtront ici automatiquement.
           </p>
         </div>

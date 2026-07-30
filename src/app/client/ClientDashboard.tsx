@@ -5,7 +5,11 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { AcprDocument, ClientAcprFolder } from "@/components/client-acpr-folder";
 import { CurrentUser } from "@/lib/auth";
-import { ShieldCheck, FolderOpen, FileCheck, Lock, CheckCircle, Clock, AlertTriangle, FileSignature, ExternalLink } from "lucide-react";
+import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import {
+  ShieldCheck, FolderOpen, FileCheck, Lock, Clock,
+  FileSignature, ExternalLink, PenLine,
+} from "lucide-react";
 
 type Tab = "documents" | "lettres" | "conformite";
 
@@ -32,76 +36,68 @@ const PRODUCT_LABEL: Record<string, string> = {
   autre: "Assurance",
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; color: string; bg: string }> = {
-    signe:     { label: "SignÃ©",      color: "#10B981", bg: "rgba(16,185,129,.1)" },
-    en_attente:{ label: "En attente", color: "#F59E0B", bg: "rgba(245,158,11,.1)" },
-    expire:    { label: "ExpirÃ©",     color: "#EF4444", bg: "rgba(239,68,68,.1)"  },
-    conforme:  { label: "Conforme",   color: "#10B981", bg: "rgba(16,185,129,.1)" },
-    alerte:    { label: "Ã vÃ©rifier", color: "#EF4444", bg: "rgba(239,68,68,.1)"  },
-    en_cours:  { label: "En cours",   color: "#3B82F6", bg: "rgba(59,130,246,.1)" },
-  };
-  const c = map[status] ?? { label: status, color: "var(--muted)", bg: "rgba(0,0,0,.06)" };
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "3px 10px",
-      borderRadius: "999px", background: c.bg, color: c.color, fontSize: "12px", fontWeight: 700 }}>
-      {c.label}
-    </span>
-  );
+// Statut espace client → ton/label du StatusBadge partagé.
+const CLIENT_STATUS: Record<string, { tone: StatusTone; label: string }> = {
+  signe: { tone: "success", label: "Signé" },
+  en_attente: { tone: "warning", label: "En attente" },
+  expire: { tone: "danger", label: "Expiré" },
+  conforme: { tone: "info", label: "Conforme" },
+  alerte: { tone: "danger", label: "À vérifier" },
+  en_cours: { tone: "info", label: "En cours" },
+};
+
+function ClientBadge({ status }: { status: string }) {
+  const cfg = CLIENT_STATUS[status] ?? { tone: "neutral" as StatusTone, label: status };
+  return <StatusBadge tone={cfg.tone} label={cfg.label} />;
 }
 
 const CONSENTEMENTS = [
-  { id: "1", type: "Recueil des besoins (DDA)",                  date: "2025-01-15", status: "signe"      },
-  { id: "2", type: "Consentement traitement donnÃ©es (RGPD)",     date: "2025-01-15", status: "signe"      },
-  { id: "3", type: "Devoir de conseil â Assurance Emprunteur",   date: "2025-03-02", status: "signe"      },
-  { id: "4", type: "Renouvellement annuel du consentement",      date: "2026-01-15", status: "en_attente" },
+  { id: "1", type: "Recueil des besoins (DDA)", date: "2025-01-15", status: "signe" },
+  { id: "2", type: "Consentement traitement données (RGPD)", date: "2025-01-15", status: "signe" },
+  { id: "3", type: "Devoir de conseil — Assurance emprunteur", date: "2025-03-02", status: "signe" },
+  { id: "4", type: "Renouvellement annuel du consentement", date: "2026-01-15", status: "en_attente" },
 ];
 
 const DOCS_SIGNES = [
-  { id: "1", nom: "Fiche de recueil des besoins 2025",  date: "2025-01-15", type: "DDA" },
-  { id: "2", nom: "Rapport de conseil personnalisÃ©",     date: "2025-03-02", type: "DDA" },
-  { id: "3", nom: "Information prÃ©contractuelle (IPID)", date: "2025-03-02", type: "DDA" },
+  { id: "1", nom: "Fiche de recueil des besoins 2025", date: "2025-01-15", type: "DDA" },
+  { id: "2", nom: "Rapport de conseil personnalisé", date: "2025-03-02", type: "DDA" },
+  { id: "3", nom: "Information précontractuelle (IPID)", date: "2025-03-02", type: "DDA" },
 ];
 
 const VERIFICATIONS = [
-  { id: "1", type: "VÃ©rification d'identitÃ© (KYC)",                        date: "2025-01-15", resultat: "conforme" },
-  { id: "2", type: "Screening PPE (Personnes Politiquement ExposÃ©es)",      date: "2025-01-15", resultat: "conforme" },
-  { id: "3", type: "ContrÃ´le listes gel des avoirs (TrÃ©sor, UE, ONU)",     date: "2025-01-15", resultat: "conforme" },
+  { id: "1", type: "Vérification d'identité (KYC)", date: "2025-01-15", resultat: "conforme" },
+  { id: "2", type: "Screening PPE (Personnes Politiquement Exposées)", date: "2025-01-15", resultat: "conforme" },
+  { id: "3", type: "Contrôle listes gel des avoirs (Trésor, UE, ONU)", date: "2025-01-15", resultat: "conforme" },
 ];
 
 function SectionCard({
   icon: Icon,
-  iconColor,
   title,
   children,
 }: {
   icon: React.ElementType;
-  iconColor: string;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <section style={{ border: "1px solid var(--line)", borderRadius: "var(--radius)",
-      background: "var(--surface)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "16px 20px",
-        borderBottom: "1px solid var(--line)", background: `${iconColor}08` }}>
-        <Icon size={18} color={iconColor} aria-hidden />
-        <h3 style={{ margin: 0, fontSize: "16px" }}>{title}</h3>
+    <section className="bo-ec-card">
+      <div className="bo-ec-card-h">
+        <span className="bo-ec-dot"><Icon size={16} aria-hidden /></span>
+        <h3>{title}</h3>
       </div>
       {children}
     </section>
   );
 }
 
-function Row({ label, sub, right, last = false }: {
-  label: string; sub?: React.ReactNode; right?: React.ReactNode; last?: boolean;
+function Row({ label, sub, right }: {
+  label: string; sub?: React.ReactNode; right?: React.ReactNode;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
-      padding: "14px 20px", borderBottom: last ? "none" : "1px solid var(--line)" }}>
+    <div className="bo-ec-row">
       <div>
-        <p style={{ margin: 0, fontWeight: 600, fontSize: "14px" }}>{label}</p>
-        {sub && <p style={{ margin: 0, fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>{sub}</p>}
+        <p className="bo-ec-lab">{label}</p>
+        {sub && <p className="bo-ec-rsub">{sub}</p>}
       </div>
       {right}
     </div>
@@ -110,60 +106,63 @@ function Row({ label, sub, right, last = false }: {
 
 export function ClientDashboard({ acprDocuments, lettres, user }: Props) {
   const [tab, setTab] = useState<Tab>("documents");
+  const firstName = user.fullName.split(" ")[0];
+
+  // Lettres non signées → carte « à signer » mise en avant.
+  const pending = lettres.filter((l) => l.status !== "signee");
+  const nextToSign = pending[0] ?? null;
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: "documents",  label: "Mes documents",      icon: FolderOpen    },
-    { id: "lettres",    label: "Lettres de mission", icon: FileSignature },
-    { id: "conformite", label: "ConformitÃ©",         icon: ShieldCheck   },
+    { id: "documents", label: "Mes documents", icon: FolderOpen },
+    { id: "lettres", label: "Lettres de mission", icon: FileSignature },
+    { id: "conformite", label: "Conformité", icon: ShieldCheck },
   ];
 
   return (
     <AppShell role="client" user={user}>
-      {/* Tab bar */}
-      <div style={{ display: "flex", gap: "4px", marginBottom: "24px", padding: "4px",
-        background: "rgba(7,24,39,.04)", borderRadius: "10px", width: "fit-content" }}>
+      <h1 className="bo-ec-hello">Bonjour {firstName} 👋</h1>
+      <p className="bo-ec-sub">Votre espace personnel EJ Partners — documents, signatures et conformité.</p>
+
+      {nextToSign && (
+        <div className="bo-ec-sign">
+          <span className="bo-ec-sign-ic"><PenLine size={22} aria-hidden /></span>
+          <div>
+            <h2>{pending.length} document{pending.length > 1 ? "s" : ""} à signer</h2>
+            <p>{PRODUCT_LABEL[nextToSign.product] ?? nextToSign.product} · {nextToSign.reference}</p>
+          </div>
+          <Link className="bo-ec-sign-btn" href={`/client/lettre-mission/${nextToSign.id}`}>
+            Signer maintenant <ExternalLink size={14} aria-hidden />
+          </Link>
+        </div>
+      )}
+
+      <div className="bo-ec-tabs">
         {tabs.map(({ id, label, icon: Icon }) => (
-          <button key={id} onClick={() => setTab(id)} style={{
-            display: "flex", alignItems: "center", gap: "7px", padding: "8px 16px",
-            borderRadius: "8px", border: "none",
-            background: tab === id ? "white" : "transparent",
-            color: tab === id ? "var(--navy)" : "var(--muted)",
-            fontWeight: tab === id ? 700 : 600, fontSize: "14px", cursor: "pointer",
-            boxShadow: tab === id ? "0 1px 4px rgba(7,24,39,.1)" : "none",
-            transition: "all .15s",
-          }}>
+          <button key={id} type="button" onClick={() => setTab(id)} className={`bo-ec-tab${tab === id ? " is-active" : ""}`}>
             <Icon size={15} aria-hidden /> {label}
           </button>
         ))}
       </div>
 
-      {/* Documents tab */}
       {tab === "documents" && <ClientAcprFolder documents={acprDocuments} />}
 
-      {/* Lettres de mission tab */}
       {tab === "lettres" && (
-        <SectionCard icon={FileSignature} iconColor="#8c6e35" title="Lettres de mission">
+        <SectionCard icon={FileSignature} title="Lettres de mission">
           {lettres.length === 0 ? (
             <Row
               label="Aucune lettre de mission pour le moment"
-              last
               sub="Votre conseiller vous transmettra une lettre de mission à signer dès qu'un projet sera lancé."
             />
           ) : (
-            lettres.map((lettre, i) => (
+            lettres.map((lettre) => (
               <Row
                 key={lettre.id}
                 label={PRODUCT_LABEL[lettre.product] ?? lettre.product}
-                last={i === lettres.length - 1}
                 sub={`${lettre.reference} · ${new Date(lettre.created_at).toLocaleDateString("fr-FR")}`}
                 right={
-                  <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <StatusBadge status={lettre.status === "signee" ? "signe" : "en_attente"} />
-                    <Link
-                      href={`/client/lettre-mission/${lettre.id}`}
-                      style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px",
-                        color: "var(--accent-strong)", fontWeight: 700 }}
-                    >
+                  <span className="bo-ec-right">
+                    <ClientBadge status={lettre.status === "signee" ? "signe" : "en_attente"} />
+                    <Link href={`/client/lettre-mission/${lettre.id}`} className="bo-ec-link">
                       {lettre.status === "signee" ? "Consulter" : "Signer"} <ExternalLink size={13} aria-hidden />
                     </Link>
                   </span>
@@ -174,51 +173,44 @@ export function ClientDashboard({ acprDocuments, lettres, user }: Props) {
         </SectionCard>
       )}
 
-      {/* ConformitÃ© tab */}
       {tab === "conformite" && (
-        <div style={{ display: "grid", gap: "20px" }}>
-
-          <SectionCard icon={FileCheck} iconColor="#3B82F6" title="Consentements &amp; devoir de conseil (DDA)">
-            {CONSENTEMENTS.map((item, i) => (
-              <Row key={item.id} label={item.type} last={i === CONSENTEMENTS.length - 1}
-                sub={`DatÃ© du ${new Date(item.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}`}
-                right={<StatusBadge status={item.status} />}
+        <div style={{ display: "grid", gap: "18px" }}>
+          <SectionCard icon={FileCheck} title="Consentements & devoir de conseil (DDA)">
+            {CONSENTEMENTS.map((item) => (
+              <Row key={item.id} label={item.type}
+                sub={`Daté du ${new Date(item.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}`}
+                right={<ClientBadge status={item.status} />}
               />
             ))}
           </SectionCard>
 
-          <SectionCard icon={Lock} iconColor="#8B5CF6" title="Documents remis &amp; signÃ©s">
-            {DOCS_SIGNES.map((doc, i) => (
-              <Row key={doc.id} label={doc.nom} last={i === DOCS_SIGNES.length - 1}
-                sub={`${doc.type} Â· ${new Date(doc.date).toLocaleDateString("fr-FR")}`}
-                right={
-                  <span style={{ display: "flex", alignItems: "center", gap: "5px",
-                    fontSize: "12px", color: "#10B981", fontWeight: 700 }}>
-                    <CheckCircle size={13} aria-hidden /> Remis
-                  </span>
-                }
+          <SectionCard icon={Lock} title="Documents remis & signés">
+            {DOCS_SIGNES.map((doc) => (
+              <Row key={doc.id} label={doc.nom}
+                sub={`${doc.type} · ${new Date(doc.date).toLocaleDateString("fr-FR")}`}
+                right={<StatusBadge tone="success" label="Remis" />}
               />
             ))}
           </SectionCard>
 
-          <SectionCard icon={AlertTriangle} iconColor="#10B981" title="VÃ©rifications rÃ©glementaires (LCB-FT)">
-            {VERIFICATIONS.map((v, i) => (
-              <Row key={v.id} label={v.type} last={i === VERIFICATIONS.length - 1}
+          <SectionCard icon={ShieldCheck} title="Vérifications réglementaires (LCB-FT)">
+            {VERIFICATIONS.map((v) => (
+              <Row key={v.id} label={v.type}
                 sub={
                   <span>
                     <Clock size={11} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }} aria-hidden />
-                    EffectuÃ© le {new Date(v.date).toLocaleDateString("fr-FR")}
+                    Effectué le {new Date(v.date).toLocaleDateString("fr-FR")}
                   </span>
                 }
-                right={<StatusBadge status={v.resultat} />}
+                right={<ClientBadge status={v.resultat} />}
               />
             ))}
           </SectionCard>
 
           <p style={{ color: "var(--muted)", fontSize: "13px", margin: 0 }}>
-            Ces vÃ©rifications sont effectuÃ©es par votre conseiller dans le respect des obligations
-            LCB-FT imposÃ©es aux intermÃ©diaires d&apos;assurance. Pour toute question :{" "}
-            <a href="mailto:contact@ej-assurances.fr" style={{ color: "var(--accent)" }}>
+            Ces vérifications sont effectuées par votre conseiller dans le respect des obligations
+            LCB-FT imposées aux intermédiaires d&apos;assurance. Pour toute question :{" "}
+            <a href="mailto:contact@ej-assurances.fr" style={{ color: "var(--accent-strong)", fontWeight: 700 }}>
               contact@ej-assurances.fr
             </a>
           </p>

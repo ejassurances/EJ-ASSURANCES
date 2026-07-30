@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/app-shell";
-import { ClientDirectory } from "@/components/client-directory";
+import { MandataireDashboard } from "@/components/mandataire-dashboard";
 import { requireRole } from "@/lib/auth";
 import { getAccessibleClients } from "@/lib/clients";
 
@@ -9,7 +9,7 @@ export default async function MandataireDashboardPage() {
 
   return (
     <AppShell role="mandataire" user={user}>
-      <ClientDirectory clients={clients} basePath="/mandataire/clients" />
+      <MandataireDashboard clients={clients} user={user} />
     </AppShell>
   );
 }

@@ -23,6 +23,8 @@ import {
   Search,
   Building2,
   Bike,
+  ClipboardCheck,
+  UserPlus,
   Menu,
   X,
 } from "lucide-react";
@@ -43,7 +45,6 @@ type NavLink = { label: string; href: string; icon: LucideIcon; hidden?: boolean
 type AdminModule = {
   id: string;
   label: string;
-  emoji: string;
   icon: LucideIcon;
   href: string;
   description: string;
@@ -54,13 +55,13 @@ const adminModules: AdminModule[] = [
   {
     id: "crm",
     label: "CRM & Productivité",
-    emoji: "🗂️",
     icon: Users,
     href: "/admin/crm",
     description: "Clients, contacts, agenda, tâches",
     links: [
       { label: "Tableau de bord", href: "/admin", icon: LayoutDashboard },
       { label: "Clients", href: "/admin/clients", icon: Users },
+      { label: "Contrats", href: "/admin/contrats", icon: FileText },
       { label: "Partenaires", href: "/admin/partenaires", icon: Building2 },
       // Masqués — modules non développés (Agenda 213, Activités/Tâches 202, Contacts).
       { label: "Contacts & Prospects", href: "/admin/crm/contacts", icon: Users, hidden: true },
@@ -71,7 +72,6 @@ const adminModules: AdminModule[] = [
   {
     id: "vente",
     label: "Vente, Leads & GED",
-    emoji: "💼",
     icon: TrendingUp,
     href: "/admin/vente",
     description: "Pipeline, devis, documents",
@@ -90,7 +90,6 @@ const adminModules: AdminModule[] = [
   {
     id: "workflows",
     label: "Workflows",
-    emoji: "⚙️",
     icon: Zap,
     href: "/admin/workflows",
     description: "Automatisations, processus, statuts",
@@ -107,7 +106,6 @@ const adminModules: AdminModule[] = [
   {
     id: "ia",
     label: "Pilotage IA",
-    emoji: "🤖",
     icon: Bot,
     href: "/admin/ia",
     description: "Analyse IA, recommandations, scoring",
@@ -128,7 +126,6 @@ const adminModules: AdminModule[] = [
   {
     id: "conformite",
     label: "Conformité",
-    emoji: "⚖️",
     icon: Scale,
     href: "/admin/conformite",
     description: "ORIAS, DDA, RGPD, classeurs ACPR",
@@ -146,7 +143,6 @@ const adminModules: AdminModule[] = [
   {
     id: "finance",
     label: "Finance & Coms",
-    emoji: "💰",
     icon: DollarSign,
     href: "/admin/finance",
     description: "Commissions, mandataires, facturation",
@@ -167,7 +163,6 @@ const adminModules: AdminModule[] = [
   {
     id: "stats",
     label: "Stats & Analyses",
-    emoji: "📊",
     icon: BarChart3,
     href: "/admin/stats",
     description: "KPIs, rapports, performance",
@@ -195,10 +190,47 @@ const clientModules: NavLink[] = [
   { label: "Messages", href: "/client#messages", icon: Bell },
 ];
 
+// Navigation dédiée mandataire (les liens de section pointent vers le dashboard).
+const mandataireModules: NavLink[] = [
+  { label: "Tableau de bord", href: "/mandataire", icon: LayoutDashboard },
+  { label: "Recueil des besoins", href: "/mandataire/recueil-besoins", icon: ClipboardCheck },
+  { label: "Mes clients", href: "/mandataire#mandataire-clients", icon: Users },
+  { label: "Conformité", href: "/mandataire#conformite", icon: ShieldCheck },
+];
+
+// Navigation dédiée prescripteur : pas de classeur ACPR, mais un KYC.
+const prescripteurModules: NavLink[] = [
+  { label: "Tableau de bord", href: "/prescripteur", icon: LayoutDashboard },
+  { label: "Déposer un prospect", href: "/prescripteur#depot", icon: UserPlus },
+  { label: "Suivi prospects", href: "/prescripteur#prospects", icon: FolderOpen },
+  { label: "KYC", href: "/prescripteur#kyc", icon: ShieldCheck },
+  { label: "Convention", href: "/prescripteur#convention", icon: FileText },
+];
+
+const nonAdminNavByRole: Record<string, NavLink[]> = {
+  client: clientModules,
+  mandataire: mandataireModules,
+  prescripteur: prescripteurModules,
+};
+
 export function AppShell({ role, user, children }: AppShellProps) {
   const pathname = usePathname() ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
   const isAdmin = role === "admin" || role === "courtier";
+  const nonAdminNav = nonAdminNavByRole[role] ?? clientModules;
+  const spaceLabel = isAdmin
+    ? "Espace cabinet"
+    : role === "mandataire"
+      ? "Espace mandataire"
+      : role === "prescripteur"
+        ? "Espace prescripteur"
+        : "Espace client";
+  const settingsHref =
+    role === "mandataire"
+      ? "/mandataire#parametres"
+      : role === "prescripteur"
+        ? "/prescripteur#parametres"
+        : "/client#parametres";
   const isLinkActive = (href: string) => pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`));
   const closeMenu = () => setMenuOpen(false);
   const nameParts = user.fullName.trim().split(/\s+/).filter(Boolean);
@@ -223,7 +255,7 @@ export function AppShell({ role, user, children }: AppShellProps) {
             priority
           />
           <span className="app-brand-title">
-            <small>{isAdmin ? "Espace cabinet" : "Espace client"}</small>
+            <small>{spaceLabel}</small>
           </span>
         </Link>
 
@@ -240,7 +272,7 @@ export function AppShell({ role, user, children }: AppShellProps) {
                     {idx > 0 && <div className="side-nav-divider" />}
                     <Link href={module.href} className={`side-nav-group-label${isActive ? " module-active" : ""}`} onClick={closeMenu}>
                       <Icon size={12} aria-hidden />
-                      {module.emoji} {module.label}
+                      {module.label}
                     </Link>
                     {visibleLinks.map((link) => {
                       const LinkIcon = link.icon;
@@ -262,7 +294,7 @@ export function AppShell({ role, user, children }: AppShellProps) {
               })}
             </>
           ) : (
-            clientModules.map((item) => {
+            nonAdminNav.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href;
               return (
@@ -279,7 +311,7 @@ export function AppShell({ role, user, children }: AppShellProps) {
           {!isAdmin && (
             <>
               <div className="side-nav-divider" />
-              <Link href="/client#parametres" onClick={closeMenu}>
+              <Link href={settingsHref} onClick={closeMenu}>
                 <Settings size={15} aria-hidden />
                 Paramètres
               </Link>

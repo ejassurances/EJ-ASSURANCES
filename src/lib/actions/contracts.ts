@@ -155,3 +155,24 @@ export async function getContractsList(opts?: { clientId?: string; status?: stri
   if (error) return [];
   return data ?? [];
 }
+
+// ── Détail d'un contrat ────────────────────────────────────────────────────────
+export async function getContract(contractId: string) {
+  await requireRole(["admin", "courtier"]);
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("contracts")
+    .select(`
+      id, client_id, project_id, contract_number, insurer_name, contract_type, status,
+      effective_date, end_date, prime_annuelle, prime_mensuelle, taux_commission,
+      montant_commission_annuel, economies_realisees, beneficiaires, notes, created_at,
+      clients(id, full_name, email, phone)
+    `)
+    .eq("id", contractId)
+    .maybeSingle();
+
+  if (error) return null;
+  return data;
+}

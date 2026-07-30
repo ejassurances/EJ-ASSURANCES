@@ -10,6 +10,8 @@ import { ClientProjectWorkflow } from "@/components/client-project-workflow";
 import { ClientPortalInviteButton } from "@/components/client-portal-invite-button";
 import { deleteContract } from "@/lib/actions/contracts";
 import { deleteInteraction, deleteRelatedPerson } from "@/lib/actions/interactions";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { clientStatus, contractStatus } from "@/components/ui/status-maps";
 import type { BorrowerProject } from "@/lib/project-workflow";
 import {
   FileText, Users, MessageSquare, Phone, Mail, Calendar, Video,
@@ -118,14 +120,6 @@ const INTERACTION_COLORS: Record<string, string> = {
 };
 
 // Statuts sémantiques DES-001 : succès / attention / danger / neutre.
-const CONTRACT_STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  draft:              { label: "Brouillon",            color: "#5D6E7E", bg: "#EEF3F8" },
-  active:             { label: "Actif",                color: "#0F7B5A", bg: "#E3F2EA" },
-  pending_signature:  { label: "En attente signature", color: "#A9721B", bg: "#FBF0D8" },
-  terminated:         { label: "Résilié",              color: "#BE3A2B", bg: "#FBE7E4" },
-  archived:           { label: "Archivé",              color: "#5D6E7E", bg: "#EEF3F8" },
-};
-
 const RELATION_LABELS: Record<string, string> = {
   conjoint: "Conjoint(e) / Partenaire",
   enfant: "Enfant",
@@ -142,13 +136,6 @@ const RELATION_COLORS: Record<string, string> = {
   autre: "linear-gradient(135deg,#374151,#6b7280)",
 };
 
-const STATUT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  prospect: { label: "Prospect",     color: "#A9721B", bg: "#FBF0D8" },
-  actif:    { label: "Client actif", color: "#0F7B5A", bg: "#E3F2EA" },
-  en_cours: { label: "En cours",     color: "#1F7A80", bg: "#E4F1F1" },
-  inactif:  { label: "Inactif",      color: "#5D6E7E", bg: "#EEF3F8" },
-};
-
 export function ClientFile360Live({ clientId, initialData }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<typeof TABS[number]["id"]>("synthese");
@@ -161,7 +148,7 @@ export function ClientFile360Live({ clientId, initialData }: Props) {
   const activeContracts = contracts.filter((c) => c.status === "active");
   const score = (client.score_protection as number | undefined) ?? 0;
   const statut_client = (client.statut_client as string | undefined) ?? "prospect";
-  const statusCfg = STATUT_CONFIG[statut_client] ?? STATUT_CONFIG.prospect;
+  const statusCfg = clientStatus[statut_client] ?? clientStatus.prospect;
 
   const handleDeleteContract = async (id: string) => {
     if (!confirm("Supprimer ce contrat ?")) return;
@@ -198,12 +185,7 @@ export function ClientFile360Live({ clientId, initialData }: Props) {
         <div className="cf360-hero-info">
           <div className="cf360-hero-name-row">
             <h2 className="cf360-hero-name">{client.full_name ?? "Client sans nom"}</h2>
-            <span
-              className="cf360-hero-status"
-              style={{ background: statusCfg.bg, color: statusCfg.color }}
-            >
-              {statusCfg.label}
-            </span>
+            <StatusBadge tone={statusCfg.tone} label={statusCfg.label} />
           </div>
           <div className="cf360-hero-meta">
             {client.email && (
@@ -587,7 +569,7 @@ export function ClientFile360Live({ clientId, initialData }: Props) {
             ) : (
               <div className="cf360-contracts-list">
                 {contracts.map((contract) => {
-                  const s = CONTRACT_STATUS[contract.status] ?? CONTRACT_STATUS.draft;
+                  const s = contractStatus[contract.status] ?? contractStatus.draft;
                   return (
                     <div key={contract.id} className="cf360-contract-card">
                       <div className="cf360-contract-card-top">
@@ -603,12 +585,7 @@ export function ClientFile360Live({ clientId, initialData }: Props) {
                           </div>
                         </div>
                         <div className="cf360-contract-card-right">
-                          <span
-                            className="cf360-contract-status"
-                            style={{ background: s.bg, color: s.color }}
-                          >
-                            {s.label}
-                          </span>
+                          <StatusBadge tone={s.tone} label={s.label} />
                           <button
                             className="cf360-delete-btn"
                             onClick={() => handleDeleteContract(contract.id)}

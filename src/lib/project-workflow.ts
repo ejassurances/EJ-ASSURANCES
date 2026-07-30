@@ -313,6 +313,148 @@ export function getBorrowerProjectProgress(project?: BorrowerProject | null) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Moteur d'étapes GÉNÉRIQUE — prêt pour tous les types de projet.
+// Le workflow emprunteur ci-dessus reste la référence ; tout autre type est
+// mappé sur une séquence générique par défaut (à affiner par type ultérieurement,
+// sans réécrire le moteur). Additif : n'altère pas les fonctions existantes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProjectWorkflowDef = {
+  steps: WorkflowStep[];
+  requiredDocuments: typeof borrowerRequiredDocuments;
+};
+
+// Séquence générique applicable à tout projet d'assurance (santé, prévoyance,
+// pro, trottinette…) : recueil → DER → devis → conseil → souscription → contrat.
+export const defaultWorkflowSteps: WorkflowStep[] = [
+  {
+    key: "needs",
+    title: "Recueil des besoins",
+    status: "in_progress",
+    description: "Collecter les informations nécessaires au conseil et à la cotation.",
+    deliverables: ["Recueil pré-rempli"],
+    channels: ["Espace client", "Saisie courtier"],
+  },
+  {
+    key: "mission",
+    title: "Entrée en relation (DER)",
+    status: "todo",
+    description: "Générer et envoyer le DER au client (l'ACPR vérifie l'envoi ; signature non obligatoire).",
+    deliverables: ["DER", "Preuve d'envoi"],
+    channels: ["Email", "Espace client"],
+  },
+  {
+    key: "quotes",
+    title: "Devis",
+    status: "todo",
+    description: "Établir le comparatif / devis à partir du recueil.",
+    deliverables: ["Comparatif devis"],
+    channels: ["Courtier"],
+  },
+  {
+    key: "advice",
+    title: "Devoir de conseil",
+    status: "todo",
+    description: "Rédiger la note de synthèse (DDA), l'envoyer au client et recueillir sa signature.",
+    deliverables: ["Devoir de conseil", "Signature client"],
+    channels: ["Email", "Espace client"],
+  },
+  {
+    key: "subscription",
+    title: "Souscription",
+    status: "todo",
+    description: "Envoyer le lien / dossier de souscription après validation du conseil.",
+    deliverables: ["Lien de souscription"],
+    channels: ["Email", "Espace client"],
+  },
+  {
+    key: "activation",
+    title: "Contrat actif",
+    status: "todo",
+    description: "Transformer en contrat, archiver les preuves et activer le dossier.",
+    deliverables: ["Contrat actif", "Archivage"],
+    channels: ["CRM", "Espace client"],
+  },
+];
+
+export const defaultRequiredDocuments = [
+  {
+    key: "identity",
+    label: "Pièce d'identité",
+    requiredForValidation: true,
+    acceptedSources: ["Espace client", "Courtier", "Mandataire"],
+  },
+];
+
+// Registre type de projet -> définition de workflow. Emprunteur = spécialisé ;
+// les autres types héritent du défaut générique tant qu'ils ne sont pas précisés.
+export const PROJECT_WORKFLOWS: Record<string, ProjectWorkflowDef> = {
+  assurance_emprunteur: { steps: borrowerWorkflowSteps, requiredDocuments: borrowerRequiredDocuments },
+};
+
+export function getWorkflowDef(projectType?: string | null): ProjectWorkflowDef {
+  return (projectType && PROJECT_WORKFLOWS[projectType])
+    || { steps: defaultWorkflowSteps, requiredDocuments: defaultRequiredDocuments };
+}
+
+// Applique les statuts stockés (project_workflow_steps) sur une liste d'étapes.
+function mergeStepStatuses(steps: WorkflowStep[], project?: BorrowerProject | null): WorkflowStep[] {
+  if (!project) return steps;
+  const stored = project.project_workflow_steps ?? [];
+  return steps.map((step) => {
+    const rec = stored.find((item) => item.step_key === step.key);
+    if (rec) {
+      return {
+        ...step,
+        title: rec.label || step.title,
+        status: rec.status,
+        deliverables: Array.isArray(rec.requirements?.deliverables)
+          ? (rec.requirements?.deliverables as string[])
+          : step.deliverables,
+        channels: rec.delivery_channels?.length ? rec.delivery_channels : step.channels,
+      };
+    }
+    if (project.status === "waiting_documents" && step.key === "needs") {
+      return { ...step, status: "blocked" as const };
+    }
+    if (project.status === "signed" || project.status === "closed") {
+      return { ...step, status: "done" as const };
+    }
+    return step;
+  });
+}
+
+/** Workflow d'un projet, quel que soit son type (dispatch via le registre). */
+export function getProjectWorkflow(project?: BorrowerProject | null): WorkflowStep[] {
+  const def = getWorkflowDef(project?.project_type);
+  return mergeStepStatuses(def.steps, project);
+}
+
+/** Documents requis d'un projet, quel que soit son type. */
+export function getProjectDocumentRequirements(project?: BorrowerProject | null) {
+  const def = getWorkflowDef(project?.project_type);
+  const storedDocuments = project?.project_document_requirements ?? [];
+  return def.requiredDocuments.map((document, index) => {
+    const stored = storedDocuments.find((item) => item.document_key === document.key);
+    return {
+      ...document,
+      id: stored?.id,
+      status: stored?.status ?? "missing",
+      position: stored?.position ?? index + 1,
+      source: stored?.source ?? null,
+      acceptedSources: stored?.accepted_sources?.length ? stored.accepted_sources : document.acceptedSources,
+    };
+  });
+}
+
+/** Progression (done/total/percent) d'un projet, quel que soit son type. */
+export function getProjectProgress(project?: BorrowerProject | null) {
+  const workflow = getProjectWorkflow(project);
+  const done = workflow.filter((step) => step.status === "done").length;
+  return { done, total: workflow.length, percent: workflow.length ? Math.round((done / workflow.length) * 100) : 0 };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Pipeline CRM : les 5 statuts client (vue simplifiée du workflow interne).
 // Mappe le workflow_stage / les étapes internes sur 5 statuts lisibles, utilisés
 // pour l'affichage d'un « Statut » unique côté fiche projet / Master Sheet.

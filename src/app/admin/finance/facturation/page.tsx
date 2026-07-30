@@ -15,8 +15,9 @@ import {
   ChevronRight,
   Euro,
   Send,
-  FileText,
 } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { invoiceStatus } from "@/components/ui/status-maps";
 
 type InvoiceStatus = "brouillon" | "envoyee" | "encaissee" | "en_retard";
 
@@ -42,12 +43,6 @@ const DEMO_INVOICES: Invoice[] = [
   { id: "5", numero: "FAC-2026-0016", client: "M. & Mme Petit", prestation: "Recueil besoins & recommandation", montant_ht: 350, tva: 0, montant_ttc: 350, statut: "encaissee", date_emission: "2026-05-20", date_echeance: "2026-06-20", date_encaissement: "2026-06-10" },
 ];
 
-const STATUS_CONFIG: Record<InvoiceStatus, { label: string; color: string; icon: typeof CheckCircle2 }> = {
-  brouillon: { label: "Brouillon", color: "#9ca3af", icon: FileText },
-  envoyee: { label: "Envoyée", color: "#3b82f6", icon: Send },
-  encaissee: { label: "Encaissée", color: "#10b981", icon: CheckCircle2 },
-  en_retard: { label: "En retard", color: "#ef4444", icon: XCircle },
-};
 
 export default function FacturationPage() {
   const [filter, setFilter] = useState("Tous");
@@ -118,7 +113,7 @@ export default function FacturationPage() {
           <span style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--muted)", fontSize: "13px" }}><Filter size={14} /> Statut :</span>
           {["Tous", "brouillon", "envoyee", "encaissee", "en_retard"].map((s) => (
             <button key={s} className={`crm-chip${filter === s ? " active" : ""}`} onClick={() => setFilter(s)}>
-              {s === "Tous" ? "Toutes" : STATUS_CONFIG[s as InvoiceStatus]?.label}
+              {s === "Tous" ? "Toutes" : invoiceStatus[s as InvoiceStatus]?.label}
             </button>
           ))}
         </div>
@@ -144,11 +139,10 @@ export default function FacturationPage() {
             </thead>
             <tbody>
               {filtered.map((inv) => {
-                const cfg = STATUS_CONFIG[inv.statut];
-                const Icon = cfg.icon;
+                const cfg = invoiceStatus[inv.statut];
                 return (
                   <tr key={inv.id} className={`finance-table-row${inv.statut === "en_retard" ? " row-alert" : ""}`}>
-                    <td><span className="finance-status-cell" style={{ color: cfg.color }}><Icon size={14} aria-hidden />{cfg.label}</span></td>
+                    <td><StatusBadge tone={cfg.tone} label={cfg.label} icon={cfg.icon} /></td>
                     <td><code style={{ fontSize: "12px", background: "var(--surface-soft)", padding: "2px 6px", borderRadius: "4px" }}>{inv.numero}</code></td>
                     <td><strong>{inv.client}</strong></td>
                     <td style={{ fontSize: "13px", color: "var(--muted)", maxWidth: "200px" }}>{inv.prestation}</td>

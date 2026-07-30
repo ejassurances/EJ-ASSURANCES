@@ -5,9 +5,7 @@ import Link from "next/link";
 import {
   Upload,
   FileSpreadsheet,
-  CheckCircle2,
   AlertTriangle,
-  XCircle,
   Zap,
   Search,
   Filter,
@@ -18,6 +16,8 @@ import {
   Clock,
   Euro,
 } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { commissionStatus } from "@/components/ui/status-maps";
 
 type MatchStatus = "match" | "impaye" | "taux_erreur" | "resilie" | "inconnu";
 
@@ -48,13 +48,6 @@ const DEMO_LINES: CommissionLine[] = [
   { id: "8", assureur: "Swiss Life", contrat_ref: "INCO-2026-0001", client_nom: "Inconnu", type_produit: "—", prime_annuelle: 0, taux_attendu: 0, taux_recu: 0, montant_attendu: 0, montant_recu: 120, ecart: 120, statut: "inconnu", date_bordereau: "2026-06-01" },
 ];
 
-const STATUS_CONFIG: Record<MatchStatus, { label: string; color: string; icon: typeof CheckCircle2 }> = {
-  match: { label: "Rapproché", color: "#10b981", icon: CheckCircle2 },
-  impaye: { label: "Impayé", color: "#ef4444", icon: XCircle },
-  taux_erreur: { label: "Erreur de taux", color: "#f59e0b", icon: AlertTriangle },
-  resilie: { label: "Résilié non signalé", color: "#ef4444", icon: AlertTriangle },
-  inconnu: { label: "Non identifié", color: "#9ca3af", icon: AlertTriangle },
-};
 
 const ASSUREURS = ["Tous", "Generali", "Allianz", "CNP Assurances", "AXA", "Cardif", "Swiss Life"];
 
@@ -166,7 +159,7 @@ export default function BordereauxPage() {
           <span style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--muted)", fontSize: "13px" }}><Filter size={14} /> Statut :</span>
           {["Tous", "match", "impaye", "taux_erreur", "resilie", "inconnu"].map((s) => (
             <button key={s} className={`crm-chip${filterStatut === s ? " active" : ""}`} onClick={() => setFilterStatut(s)}>
-              {s === "Tous" ? "Tous" : STATUS_CONFIG[s as MatchStatus]?.label ?? s}
+              {s === "Tous" ? "Tous" : commissionStatus[s as MatchStatus]?.label ?? s}
             </button>
           ))}
         </div>
@@ -193,11 +186,10 @@ export default function BordereauxPage() {
             </thead>
             <tbody>
               {filtered.map((line) => {
-                const cfg = STATUS_CONFIG[line.statut];
-                const Icon = cfg.icon;
+                const cfg = commissionStatus[line.statut];
                 return (
                   <tr key={line.id} className={`finance-table-row${line.statut !== "match" ? " row-alert" : ""}`}>
-                    <td><span className="finance-status-cell" style={{ color: cfg.color }}><Icon size={14} aria-hidden />{cfg.label}</span></td>
+                    <td><StatusBadge tone={cfg.tone} label={cfg.label} icon={cfg.icon} /></td>
                     <td><strong>{line.assureur}</strong></td>
                     <td><code style={{ fontSize: "12px", background: "var(--surface-soft)", padding: "2px 6px", borderRadius: "4px" }}>{line.contrat_ref}</code></td>
                     <td>{line.client_nom}</td>
