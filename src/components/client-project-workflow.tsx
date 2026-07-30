@@ -25,6 +25,7 @@ import {
   type ProjectStepStatus,
 } from "@/lib/project-workflow";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import { ClientDocumentsPanel } from "@/components/client-documents-panel";
 
 type ClientProjectWorkflowProps = {
   clientId: string;
@@ -342,6 +343,10 @@ export function ClientProjectWorkflow({ clientId, projects }: ClientProjectWorkf
               })}
             </div></div>
           )}
+
+          <div className="bo-wf-railcard"><div className="bo-wf-panel-b">
+            <ClientDocumentsPanel clientId={clientId} projectId={activeProject.id} canManage />
+          </div></div>
 
           <div className="bo-wf-railcard"><div className="bo-wf-panel-b bo-wf-trace">
             <p className="bo-wf-railh">Traçabilité</p>

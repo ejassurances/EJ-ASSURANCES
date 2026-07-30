@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { AcprDocument, ClientAcprFolder } from "@/components/client-acpr-folder";
+import { ClientDocumentsPanel } from "@/components/client-documents-panel";
 import { CurrentUser } from "@/lib/auth";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import {
@@ -25,6 +26,7 @@ interface Props {
   acprDocuments: AcprDocument[];
   lettres: LettreMissionSummary[];
   user: CurrentUser;
+  clientId: string | null;
 }
 
 const PRODUCT_LABEL: Record<string, string> = {
@@ -104,7 +106,7 @@ function Row({ label, sub, right }: {
   );
 }
 
-export function ClientDashboard({ acprDocuments, lettres, user }: Props) {
+export function ClientDashboard({ acprDocuments, lettres, user, clientId }: Props) {
   const [tab, setTab] = useState<Tab>("documents");
   const firstName = user.fullName.split(" ")[0];
 
@@ -144,7 +146,18 @@ export function ClientDashboard({ acprDocuments, lettres, user }: Props) {
         ))}
       </div>
 
-      {tab === "documents" && <ClientAcprFolder documents={acprDocuments} />}
+      {tab === "documents" && (
+        <>
+          {clientId && (
+            <SectionCard icon={FolderOpen} title="Mes pièces contrats & projets">
+              <div style={{ padding: "4px 20px 16px" }}>
+                <ClientDocumentsPanel clientId={clientId} isClient />
+              </div>
+            </SectionCard>
+          )}
+          <ClientAcprFolder documents={acprDocuments} />
+        </>
+      )}
 
       {tab === "lettres" && (
         <SectionCard icon={FileSignature} title="Lettres de mission">

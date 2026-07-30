@@ -8,6 +8,7 @@ export default async function ClientDashboardPage() {
   const supabase = await createSupabaseServerClient();
   let acprDocuments: AcprDocument[] = [];
   let lettres: LettreMissionSummary[] = [];
+  let clientId: string | null = null;
 
   if (supabase) {
     const { data: client } = await supabase
@@ -17,6 +18,7 @@ export default async function ClientDashboardPage() {
       .maybeSingle();
 
     if (client) {
+      clientId = client.id as string;
       const { data } = await supabase
         .from("documents")
         .select("id, storage_path, document_type, created_at")
@@ -36,5 +38,5 @@ export default async function ClientDashboardPage() {
     }
   }
 
-  return <ClientDashboard acprDocuments={acprDocuments} lettres={lettres} user={user} />;
+  return <ClientDashboard acprDocuments={acprDocuments} lettres={lettres} user={user} clientId={clientId} />;
 }

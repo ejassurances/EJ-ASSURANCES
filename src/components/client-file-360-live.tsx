@@ -7,6 +7,7 @@ import { ContractForm } from "@/components/forms/contract-form";
 import { InteractionForm } from "@/components/forms/interaction-form";
 import { RelatedPersonForm } from "@/components/forms/related-person-form";
 import { ClientProjectWorkflow } from "@/components/client-project-workflow";
+import { ClientDocumentsPanel } from "@/components/client-documents-panel";
 import { ClientPortalInviteButton } from "@/components/client-portal-invite-button";
 import { deleteContract } from "@/lib/actions/contracts";
 import { deleteInteraction, deleteRelatedPerson } from "@/lib/actions/interactions";
@@ -622,6 +623,7 @@ export function ClientFile360Live({ clientId, initialData }: Props) {
                           </div>
                         )}
                       </div>
+                      <ClientDocumentsPanel clientId={clientId} contractId={contract.id} canManage />
                     </div>
                   );
                 })}
