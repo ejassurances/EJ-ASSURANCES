@@ -67,14 +67,40 @@ function encodeSubject(subject: string): string {
   return `=?UTF-8?B?${Buffer.from(subject, "utf8").toString("base64")}?=`;
 }
 
-// Access token OAuth pour l'API Gmail via compte de service + délégation domaine
-// (impersonation de la boîte GMAIL_SENDER_EMAIL). JWT RS256 réellement signé.
-async function getGmailAccessToken(): Promise<string> {
-  const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!serviceAccountKey) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY manquante");
+type GmailAuth = { token: string; userId: string; from?: string };
 
+// Stratégie 1 (prioritaire, la plus simple) : OAuth avec le refresh token déjà
+// utilisé par la route gmail-threads (GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN).
+// Aucune délégation domaine ni SMTP à configurer. L'email part de la boîte
+// autorisée et apparaît dans « Envoyés » de Gmail.
+async function getGmailAuthViaOAuth(): Promise<GmailAuth | null> {
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!refreshToken || !clientId || !clientSecret) return null;
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`OAuth Gmail (refresh token): ${response.status} ${await response.text()}`);
+  }
+  const data = (await response.json()) as { access_token: string };
+  return { token: data.access_token, userId: "me", from: process.env.GMAIL_SENDER_EMAIL };
+}
+
+// Stratégie 2 (secours) : compte de service + délégation à l'échelle du domaine.
+async function getGmailAuthViaServiceAccount(): Promise<GmailAuth | null> {
+  const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   const impersonate = process.env.GMAIL_SENDER_EMAIL;
-  if (!impersonate) throw new Error("GMAIL_SENDER_EMAIL manquante");
+  if (!serviceAccountKey || !impersonate) return null;
 
   const creds = JSON.parse(serviceAccountKey) as { client_email: string; private_key: string };
   const now = Math.floor(Date.now() / 1000);
@@ -82,17 +108,14 @@ async function getGmailAccessToken(): Promise<string> {
 
   const signingInput = `${b64({ alg: "RS256", typ: "JWT" })}.${b64({
     iss: creds.client_email,
-    sub: impersonate, // délégation à l'échelle du domaine
+    sub: impersonate,
     scope: "https://www.googleapis.com/auth/gmail.send",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
     iat: now,
   })}`;
 
-  const signature = createSign("RSA-SHA256")
-    .update(signingInput)
-    .sign(creds.private_key)
-    .toString("base64url");
+  const signature = createSign("RSA-SHA256").update(signingInput).sign(creds.private_key).toString("base64url");
 
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -102,16 +125,25 @@ async function getGmailAccessToken(): Promise<string> {
       assertion: `${signingInput}.${signature}`,
     }),
   });
-
   if (!response.ok) {
-    throw new Error(`Erreur OAuth Gmail: ${response.status} ${await response.text()}`);
+    throw new Error(`OAuth Gmail (compte de service): ${response.status} ${await response.text()}`);
   }
   const data = (await response.json()) as { access_token: string };
-  return data.access_token;
+  return { token: data.access_token, userId: impersonate, from: impersonate };
 }
 
-// Envoi réel via l'API Gmail (le message part depuis la boîte GMAIL_SENDER_EMAIL
-// et apparaît donc dans « Envoyés » de Gmail).
+async function getGmailAuth(): Promise<GmailAuth> {
+  const auth = (await getGmailAuthViaOAuth()) ?? (await getGmailAuthViaServiceAccount());
+  if (!auth) {
+    throw new Error(
+      "Aucune configuration Gmail : définissez soit GOOGLE_REFRESH_TOKEN (+ CLIENT_ID/SECRET), soit GOOGLE_SERVICE_ACCOUNT_KEY + GMAIL_SENDER_EMAIL.",
+    );
+  }
+  return auth;
+}
+
+// Envoi réel via l'API Gmail (OAuth refresh token en priorité, sinon compte de
+// service). Le message part de la boîte Gmail autorisée et apparaît dans « Envoyés ».
 async function sendEmailViaGmail(
   to: string[],
   subject: string,
@@ -119,13 +151,11 @@ async function sendEmailViaGmail(
   replyTo?: string,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
-    const senderEmail = process.env.GMAIL_SENDER_EMAIL;
-    if (!senderEmail) return { success: false, error: "GMAIL_SENDER_EMAIL manquante" };
+    const auth = await getGmailAuth();
 
-    const token = await getGmailAccessToken();
-
+    const fromLine = auth.from ? `From: ${SENDER_NAME} <${auth.from}>` : "";
     const message = [
-      `From: ${SENDER_NAME} <${senderEmail}>`,
+      fromLine,
       `To: ${to.join(", ")}`,
       "MIME-Version: 1.0",
       "Content-Type: text/html; charset=utf-8",
@@ -140,10 +170,10 @@ async function sendEmailViaGmail(
     const raw = Buffer.from(message, "utf8").toString("base64url");
 
     const response = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(senderEmail)}/messages/send`,
+      `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(auth.userId)}/messages/send`,
       {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ raw }),
       },
     );
