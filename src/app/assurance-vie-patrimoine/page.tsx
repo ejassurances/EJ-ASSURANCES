@@ -42,8 +42,8 @@ export default function AssuranceViePatrimoinePage() {
             vraiment votre famille.
           </p>
           <div className="hero-actions">
-            <Link className="primary-action" href="/contact#rendez-vous">Construire ma stratégie</Link>
-            <Link className="secondary-action" href="/conseils-actus">Lire les conseils <ArrowRight size={16} aria-hidden /></Link>
+            <Link className="primary-action" href="/devis/assurance-vie">Faire mon recueil assurance vie <ArrowRight size={16} aria-hidden /></Link>
+            <Link className="secondary-action" href="/contact#rendez-vous">Prendre rendez-vous</Link>
           </div>
         </section>
 

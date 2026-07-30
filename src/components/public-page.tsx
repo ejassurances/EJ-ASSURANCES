@@ -11,10 +11,13 @@ type PublicPageProps = {
   examples?: { title: string; text: string }[];
   checks?: string[];
   outcome?: string;
+  /** Si fourni, ajoute un CTA « recueil des besoins » en action principale du hero. */
+  recueilHref?: string;
+  recueilLabel?: string;
   children?: React.ReactNode;
 };
 
-export function PublicPage({ title, eyebrow, description, highlights, examples = [], checks = [], outcome, children }: PublicPageProps) {
+export function PublicPage({ title, eyebrow, description, highlights, examples = [], checks = [], outcome, recueilHref, recueilLabel, children }: PublicPageProps) {
   return (
     <>
       <SiteHeader />
@@ -25,12 +28,25 @@ export function PublicPage({ title, eyebrow, description, highlights, examples =
             <h1>{title}</h1>
             <p className="hero-copy">{description}</p>
             <div className="hero-actions">
-              <Link className="primary-action" href="/contact#rendez-vous">
-                Prendre rendez-vous <ArrowRight size={18} aria-hidden />
-              </Link>
-              <Link className="secondary-action" href="/connexion">
-                Accéder à mon espace
-              </Link>
+              {recueilHref ? (
+                <>
+                  <Link className="primary-action" href={recueilHref}>
+                    {recueilLabel ?? "Faire mon recueil en ligne"} <ArrowRight size={18} aria-hidden />
+                  </Link>
+                  <Link className="secondary-action" href="/contact#rendez-vous">
+                    Prendre rendez-vous
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link className="primary-action" href="/contact#rendez-vous">
+                    Prendre rendez-vous <ArrowRight size={18} aria-hidden />
+                  </Link>
+                  <Link className="secondary-action" href="/connexion">
+                    Accéder à mon espace
+                  </Link>
+                </>
+              )}
             </div>
           </div>
           <aside className="trust-panel" aria-label="Points d'accompagnement">
@@ -97,8 +113,8 @@ export function PublicPage({ title, eyebrow, description, highlights, examples =
                 <p className="eyebrow">Résultat attendu</p>
                 <h2>Une protection plus lisible</h2>
                 <p style={{ color: "var(--muted)", lineHeight: 1.7 }}>{outcome}</p>
-                <Link className="primary-action standalone" href="/contact#rendez-vous">
-                  Demander une première analyse <ArrowRight size={18} aria-hidden />
+                <Link className="primary-action standalone" href={recueilHref ?? "/contact#rendez-vous"}>
+                  {recueilHref ? (recueilLabel ?? "Faire mon recueil en ligne") : "Demander une première analyse"} <ArrowRight size={18} aria-hidden />
                 </Link>
               </div>
             )}
