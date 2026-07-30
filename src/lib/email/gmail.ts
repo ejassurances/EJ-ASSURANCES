@@ -2,6 +2,8 @@
 // Utilise l'API Gmail via Google Workspace service account
 // Approche légère sans dépendances lourdes (pas de googleapis SDK)
 
+import { legalSignatureHtml } from "./legal-signature";
+
 // ─────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────
@@ -195,8 +197,7 @@ export async function sendContactConfirmation(
       <p>Cordialement,<br><strong>EJ Partners Assurances</strong></p>
     </div>
     <div class="footer">
-      <p>Cabinet de courtage indépendant en assurance</p>
-      <p><a href="https://www.ej-assurances.fr">www.ej-assurances.fr</a></p>
+      ${legalSignatureHtml()}
     </div>
   </div>
 </body>
@@ -295,8 +296,7 @@ export async function sendClientInvitation(
       <p>Cordialement,<br><strong>EJ Partners Assurances</strong></p>
     </div>
     <div class="footer">
-      <p>Cabinet de courtage indépendant en assurance</p>
-      <p><a href="https://www.ej-assurances.fr">www.ej-assurances.fr</a></p>
+      ${legalSignatureHtml()}
     </div>
   </div>
 </body>
@@ -338,8 +338,7 @@ export async function sendClientRelance(
       ${data.advisorName ? `<p style="margin-top: 24px;"><strong>${data.advisorName}</strong><br>EJ Partners Assurances</p>` : '<p style="margin-top: 24px;"><strong>EJ Partners Assurances</strong></p>'}
     </div>
     <div class="footer">
-      <p>Cabinet de courtage indépendant en assurance</p>
-      <p><a href="https://www.ej-assurances.fr">www.ej-assurances.fr</a></p>
+      ${legalSignatureHtml()}
     </div>
   </div>
 </body>
@@ -385,8 +384,7 @@ export async function sendPhoneConsentRequest(
       contacterons pas par téléphone. Vous pouvez ignorer cet email si vous ne le souhaitez pas.</p>
     </div>
     <div class="footer">
-      <p>Cabinet de courtage indépendant en assurance</p>
-      <p><a href="https://www.ej-assurances.fr">www.ej-assurances.fr</a></p>
+      ${legalSignatureHtml()}
     </div>
   </div>
 </body>
