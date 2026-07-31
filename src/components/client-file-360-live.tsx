@@ -7,6 +7,8 @@ import { ContractForm } from "@/components/forms/contract-form";
 import { InteractionForm } from "@/components/forms/interaction-form";
 import { RelatedPersonForm } from "@/components/forms/related-person-form";
 import { ClientProjectWorkflow } from "@/components/client-project-workflow";
+import { ClientDocumentsPanel } from "@/components/client-documents-panel";
+import { ClientEmailPanel } from "@/components/client-email-panel";
 import { ClientPortalInviteButton } from "@/components/client-portal-invite-button";
 import { deleteContract } from "@/lib/actions/contracts";
 import { deleteInteraction, deleteRelatedPerson } from "@/lib/actions/interactions";
@@ -103,6 +105,7 @@ const TABS = [
   { id: "synthese",      label: "Synthèse",         icon: Shield },
   { id: "projets",       label: "Projets",           icon: BriefcaseBusiness },
   { id: "interactions",  label: "Interactions",      icon: MessageSquare },
+  { id: "emails",        label: "Emails",            icon: Mail },
   { id: "contrats",      label: "Contrats",          icon: FileText },
   { id: "documents",     label: "Documents",         icon: FileText },
   { id: "personnes",     label: "Famille",           icon: Users },
@@ -505,6 +508,12 @@ export function ClientFile360Live({ clientId, initialData }: Props) {
           </div>
         )}
 
+        {activeTab === "emails" && (
+          <div className="cf360-tab-content">
+            <ClientEmailPanel clientId={clientId} clientEmail={client.email} />
+          </div>
+        )}
+
         {activeTab === "documents" && (
           <div className="cf360-section">
             <div className="cf360-section-header">
@@ -622,6 +631,7 @@ export function ClientFile360Live({ clientId, initialData }: Props) {
                           </div>
                         )}
                       </div>
+                      <ClientDocumentsPanel clientId={clientId} contractId={contract.id} canManage />
                     </div>
                   );
                 })}

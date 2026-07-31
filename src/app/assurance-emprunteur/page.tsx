@@ -4,7 +4,11 @@ import { SimulateurClient } from "@/components/borrower-savings-simulator";
 
 export default function AssuranceEmprunteurPage() {
   return (
-    <PublicPage {...expertisePages["/assurance-emprunteur"]}>
+    <PublicPage
+      {...expertisePages["/assurance-emprunteur"]}
+      recueilHref="/devis/emprunteur"
+      recueilLabel="Faire mon devis en ligne"
+    >
       <section id="simulateur" className="bg-[#F6F9FC] px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="mb-10 max-w-3xl">

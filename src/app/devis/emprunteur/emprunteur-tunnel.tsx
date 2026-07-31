@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ChevronRight, ChevronLeft, Upload, Plus, Trash2, CheckCircle2, Loader2, X } from "lucide-react";
 
@@ -99,6 +99,11 @@ export function EmprunteurTunnel() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Anti-bot : honeypot + délai minimal de remplissage.
+  const honeypotRef = useRef<HTMLInputElement>(null);
+  const renderedAtRef = useRef(0);
+  useEffect(() => { renderedAtRef.current = Date.now(); }, []);
+
   // Step 1: Identity
   const [identity, setIdentity] = useState({
     full_name: "",
@@ -135,6 +140,10 @@ export function EmprunteurTunnel() {
   // ── Step 1 → create dossier ──
   const submitStep1 = async () => {
     setError(null);
+    // Anti-bot : honeypot rempli ou soumission trop rapide (< 3 s) → on bloque.
+    if (honeypotRef.current?.value || Date.now() - renderedAtRef.current < 3000) {
+      return;
+    }
     if (!identity.full_name.trim() || !identity.email.trim()) {
       setError("Nom complet et email sont obligatoires.");
       return;
@@ -305,6 +314,10 @@ export function EmprunteurTunnel() {
           </div>
 
           <div className="client-form">
+            {/* Anti-bot : honeypot invisible. */}
+            <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }}>
+              <input ref={honeypotRef} type="text" name="company_url" tabIndex={-1} autoComplete="off" />
+            </div>
             <fieldset className="form-section">
               <div className="form-grid-2">
                 <div className="form-field">

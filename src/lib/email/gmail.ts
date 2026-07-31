@@ -2,6 +2,8 @@
 // Utilise l'API Gmail via Google Workspace service account
 // Approche légère sans dépendances lourdes (pas de googleapis SDK)
 
+import { legalSignatureHtml } from "./legal-signature";
+
 // ─────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────
@@ -40,6 +42,12 @@ export interface ClientRelanceData {
   fullName?: string;
 }
 
+export interface PhoneConsentRequestData {
+  email: string;
+  fullName?: string;
+  confirmUrl: string;
+}
+
 export interface EmailResult {
   success: boolean;
   id?: string;
@@ -50,62 +58,92 @@ export interface EmailResult {
 // Helpers
 // ─────────────────────────────────────────────
 
-// Convertir HTML en base64 pour l'API Gmail
-function encodeEmail(emailContent: string): string {
-  return Buffer.from(emailContent).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+import { createSign } from "crypto";
+
+const SENDER_NAME = "EJ Partners Assurances";
+
+// Encodage RFC 2047 du sujet (accents / caractères non-ASCII).
+function encodeSubject(subject: string): string {
+  return `=?UTF-8?B?${Buffer.from(subject, "utf8").toString("base64")}?=`;
 }
 
-// Obtenir un access token JWT pour l'API Gmail
-async function getGmailAccessToken(): Promise<string> {
+type GmailAuth = { token: string; userId: string; from?: string };
+
+// Stratégie 1 (prioritaire, la plus simple) : OAuth avec le refresh token déjà
+// utilisé par la route gmail-threads (GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN).
+// Aucune délégation domaine ni SMTP à configurer. L'email part de la boîte
+// autorisée et apparaît dans « Envoyés » de Gmail.
+async function getGmailAuthViaOAuth(): Promise<GmailAuth | null> {
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!refreshToken || !clientId || !clientSecret) return null;
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`OAuth Gmail (refresh token): ${response.status} ${await response.text()}`);
+  }
+  const data = (await response.json()) as { access_token: string };
+  return { token: data.access_token, userId: "me", from: process.env.GMAIL_SENDER_EMAIL };
+}
+
+// Stratégie 2 (secours) : compte de service + délégation à l'échelle du domaine.
+async function getGmailAuthViaServiceAccount(): Promise<GmailAuth | null> {
   const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  
-  if (!serviceAccountKey) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY manquante');
+  const impersonate = process.env.GMAIL_SENDER_EMAIL;
+  if (!serviceAccountKey || !impersonate) return null;
+
+  const creds = JSON.parse(serviceAccountKey) as { client_email: string; private_key: string };
+  const now = Math.floor(Date.now() / 1000);
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+
+  const signingInput = `${b64({ alg: "RS256", typ: "JWT" })}.${b64({
+    iss: creds.client_email,
+    sub: impersonate,
+    scope: "https://www.googleapis.com/auth/gmail.send",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+  })}`;
+
+  const signature = createSign("RSA-SHA256").update(signingInput).sign(creds.private_key).toString("base64url");
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: `${signingInput}.${signature}`,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`OAuth Gmail (compte de service): ${response.status} ${await response.text()}`);
   }
-
-  try {
-    const credentials = JSON.parse(serviceAccountKey);
-    
-    // Créer un JWT
-    const header = { alg: 'RS256', typ: 'JWT' };
-    const now = Math.floor(Date.now() / 1000);
-    const claim = {
-      iss: credentials.client_email,
-      scope: 'https://www.googleapis.com/auth/gmail.send',
-      aud: 'https://oauth2.googleapis.com/token',
-      exp: now + 3600,
-      iat: now,
-    };
-    
-    const headerEncoded = Buffer.from(JSON.stringify(header)).toString('base64url');
-    const claimEncoded = Buffer.from(JSON.stringify(claim)).toString('base64url');
-    const signature = Buffer.from(`${headerEncoded}.${claimEncoded}`).toString('base64url');
-    
-    // En production, on aurait besoin de signer avec la clé privée
-    // Pour maintenant, on va utiliser une approche alternative plus simple
-    
-    // Utiliser fetch pour obtenir le token via credentials.json
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion: `${headerEncoded}.${claimEncoded}.${signature}`,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erreur OAuth: ${response.status}`);
-    }
-
-    const data = await response.json() as { access_token: string };
-    return data.access_token;
-  } catch (err) {
-    throw new Error(`Erreur authentification Gmail: ${String(err)}`);
-  }
+  const data = (await response.json()) as { access_token: string };
+  return { token: data.access_token, userId: impersonate, from: impersonate };
 }
 
-// Envoyer un email via Gmail API
+async function getGmailAuth(): Promise<GmailAuth> {
+  const auth = (await getGmailAuthViaOAuth()) ?? (await getGmailAuthViaServiceAccount());
+  if (!auth) {
+    throw new Error(
+      "Aucune configuration Gmail : définissez soit GOOGLE_REFRESH_TOKEN (+ CLIENT_ID/SECRET), soit GOOGLE_SERVICE_ACCOUNT_KEY + GMAIL_SENDER_EMAIL.",
+    );
+  }
+  return auth;
+}
+
+// Envoi réel via l'API Gmail (OAuth refresh token en priorité, sinon compte de
+// service). Le message part de la boîte Gmail autorisée et apparaît dans « Envoyés ».
 async function sendEmailViaGmail(
   to: string[],
   subject: string,
@@ -113,45 +151,42 @@ async function sendEmailViaGmail(
   replyTo?: string,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
-    const senderEmail = process.env.GMAIL_SENDER_EMAIL ?? 'noreply@ej-assurances.fr';
-    
-    // Créer le message
+    const auth = await getGmailAuth();
+
+    const fromLine = auth.from ? `From: ${SENDER_NAME} <${auth.from}>` : "";
     const message = [
-      `From: ${senderEmail}`,
-      `To: ${to.join(', ')}`,
-      'Content-Type: text/html; charset=utf-8',
-      'MIME-Version: 1.0',
-      `Subject: ${subject}`,
-      replyTo ? `Reply-To: ${replyTo}` : '',
-      '',
+      fromLine,
+      `To: ${to.join(", ")}`,
+      "MIME-Version: 1.0",
+      "Content-Type: text/html; charset=utf-8",
+      `Subject: ${encodeSubject(subject)}`,
+      replyTo ? `Reply-To: ${replyTo}` : "",
+      "",
       html,
     ]
       .filter(Boolean)
-      .join('\r\n');
+      .join("\r\n");
 
-    const encoded = encodeEmail(message);
+    const raw = Buffer.from(message, "utf8").toString("base64url");
 
-    // Pour cette version légère, on peut utiliser SendGrid ou une autre API
-    // Alternative: utiliser un worker Vercel Edge Function pour l'authentification OAuth
-    // Pour maintenant, retourner un succès simulé en attendant l'authentification correcte
-    
-    console.log('[Gmail] Email queued:', {
-      to,
-      subject,
-      size: html.length,
-    });
+    const response = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(auth.userId)}/messages/send`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ raw }),
+      },
+    );
 
-    return {
-      success: true,
-      id: `gmail_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    };
+    if (!response.ok) {
+      return { success: false, error: `Gmail send: ${response.status} ${await response.text()}` };
+    }
+    const data = (await response.json()) as { id?: string };
+    return { success: true, id: data.id };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[Gmail] Erreur envoi email:', message);
-    return {
-      success: false,
-      error: message,
-    };
+    console.error("[Gmail] Erreur envoi email:", message);
+    return { success: false, error: message };
   }
 }
 
@@ -189,8 +224,7 @@ export async function sendContactConfirmation(
       <p>Cordialement,<br><strong>EJ Partners Assurances</strong></p>
     </div>
     <div class="footer">
-      <p>Cabinet de courtage indépendant en assurance</p>
-      <p><a href="https://www.ej-assurances.fr">www.ej-assurances.fr</a></p>
+      ${legalSignatureHtml()}
     </div>
   </div>
 </body>
@@ -289,8 +323,7 @@ export async function sendClientInvitation(
       <p>Cordialement,<br><strong>EJ Partners Assurances</strong></p>
     </div>
     <div class="footer">
-      <p>Cabinet de courtage indépendant en assurance</p>
-      <p><a href="https://www.ej-assurances.fr">www.ej-assurances.fr</a></p>
+      ${legalSignatureHtml()}
     </div>
   </div>
 </body>
@@ -332,8 +365,7 @@ export async function sendClientRelance(
       ${data.advisorName ? `<p style="margin-top: 24px;"><strong>${data.advisorName}</strong><br>EJ Partners Assurances</p>` : '<p style="margin-top: 24px;"><strong>EJ Partners Assurances</strong></p>'}
     </div>
     <div class="footer">
-      <p>Cabinet de courtage indépendant en assurance</p>
-      <p><a href="https://www.ej-assurances.fr">www.ej-assurances.fr</a></p>
+      ${legalSignatureHtml()}
     </div>
   </div>
 </body>
@@ -342,4 +374,59 @@ export async function sendClientRelance(
 
   const adminEmail = process.env.GMAIL_ADMIN_EMAIL ?? 'contact@ej-assurances.fr';
   return sendEmailViaGmail([data.email], data.subject, html, adminEmail);
+}
+
+// Envoi générique depuis le CRM (email libre rédigé par un conseiller).
+export async function sendCrmEmail(params: {
+  to: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+}): Promise<EmailResult> {
+  return sendEmailViaGmail([params.to], params.subject, params.html, params.replyTo);
+}
+
+// Demande de confirmation du consentement au recontact téléphonique.
+export async function sendPhoneConsentRequest(
+  data: PhoneConsentRequestData,
+): Promise<EmailResult> {
+  const subject = "Confirmez votre accord pour être recontacté par téléphone";
+  const hello = data.fullName ? `Bonjour ${data.fullName},` : "Bonjour,";
+  const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #0a193c 0%, #173b5c 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align: center; }
+    .content { background: white; padding: 24px; border: 1px solid #e0e0e0; border-radius: 0 0 8px 8px; }
+    .btn { display: inline-block; background: #0a193c; color: #ffffff !important; text-decoration: none; font-weight: 700; padding: 13px 22px; border-radius: 8px; margin: 18px 0; }
+    .footer { color: #666; font-size: 12px; text-align: center; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1 style="margin:0;">Votre consentement téléphonique</h1></div>
+    <div class="content">
+      <p>${hello}</p>
+      <p>Conformément à la réglementation, nous avons besoin de votre accord explicite pour
+      pouvoir vous recontacter <strong>par téléphone</strong> au sujet de votre projet d'assurance.</p>
+      <p>Si vous acceptez d'être joint par téléphone par le cabinet EJ Partners Assurances,
+      merci de le confirmer :</p>
+      <p style="text-align:center;"><a class="btn" href="${data.confirmUrl}">Je confirme mon accord</a></p>
+      <p style="color:#666;font-size:13px;">Sans confirmation de votre part, nous ne vous
+      contacterons pas par téléphone. Vous pouvez ignorer cet email si vous ne le souhaitez pas.</p>
+    </div>
+    <div class="footer">
+      ${legalSignatureHtml()}
+    </div>
+  </div>
+</body>
+</html>
+  `;
+  const adminEmail = process.env.GMAIL_ADMIN_EMAIL ?? 'contact@ej-assurances.fr';
+  return sendEmailViaGmail([data.email], subject, html, adminEmail);
 }
