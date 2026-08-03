@@ -345,7 +345,12 @@ export function ClientProjectWorkflow({ clientId, projects }: ClientProjectWorkf
           )}
 
           <div className="bo-wf-railcard"><div className="bo-wf-panel-b">
-            <ClientDocumentsPanel clientId={clientId} projectId={activeProject.id} canManage />
+            <ClientDocumentsPanel
+              clientId={clientId}
+              projectId={activeProject.id}
+              canManage
+              typeOptions={documentRequirements.map((d) => ({ value: d.key, label: d.label }))}
+            />
           </div></div>
 
           <div className="bo-wf-railcard"><div className="bo-wf-panel-b bo-wf-trace">

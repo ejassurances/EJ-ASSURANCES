@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Paperclip, Upload, Eye, EyeOff, Trash2, Download, FileText, Loader2,
 } from "lucide-react";
@@ -11,8 +12,11 @@ import {
   toggleClientDocumentVisibility,
   deleteClientDocument,
   getClientDocumentSignedUrl,
+  KYC_DOCUMENT_TYPES,
   type ClientDocument,
 } from "@/lib/actions/client-documents";
+
+type TypeOption = { value: string; label: string };
 
 type Props = {
   clientId: string;
@@ -22,6 +26,11 @@ type Props = {
   canManage?: boolean;
   /** Vue côté client. */
   isClient?: boolean;
+  /**
+   * Liste des types proposés au dépôt. Dans un projet, on passe les exigences
+   * documentaires du projet ; sinon on retombe sur les types KYC standard.
+   */
+  typeOptions?: TypeOption[];
 };
 
 function humanSize(n: number | null) {
@@ -31,7 +40,8 @@ function humanSize(n: number | null) {
   return `${(n / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-export function ClientDocumentsPanel({ clientId, contractId, projectId, canManage, isClient }: Props) {
+export function ClientDocumentsPanel({ clientId, contractId, projectId, canManage, isClient, typeOptions }: Props) {
+  const router = useRouter();
   const [docs, setDocs] = useState<ClientDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +49,12 @@ export function ClientDocumentsPanel({ clientId, contractId, projectId, canManag
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const labelRef = useRef<HTMLInputElement>(null);
+  const [docType, setDocType] = useState("");
+
+  // Types proposés : exigences du projet si fournies, sinon liste KYC standard.
+  const options: TypeOption[] = typeOptions && typeOptions.length > 0 ? typeOptions : KYC_DOCUMENT_TYPES;
+  const typeLabel = (value: string | null) =>
+    value ? options.find((o) => o.value === value)?.label ?? value : null;
 
   const load = useCallback(() => {
     setLoading(true);
@@ -67,6 +83,7 @@ export function ClientDocumentsPanel({ clientId, contractId, projectId, canManag
     if (contractId) fd.append("contract_id", contractId);
     if (projectId) fd.append("project_id", projectId);
     if (labelRef.current?.value) fd.append("label", labelRef.current.value);
+    if (docType) fd.append("doc_type", docType);
     fd.append("file", file);
 
     setUploading(true);
@@ -75,7 +92,9 @@ export function ClientDocumentsPanel({ clientId, contractId, projectId, canManag
     if (!res.success) { setError(res.error ?? "Échec de l'envoi."); return; }
     if (fileRef.current) fileRef.current.value = "";
     if (labelRef.current) labelRef.current.value = "";
+    setDocType("");
     load();
+    router.refresh(); // met à jour les badges d'exigences du projet
   }
 
   function handleToggle(doc: ClientDocument) {
@@ -99,8 +118,10 @@ export function ClientDocumentsPanel({ clientId, contractId, projectId, canManag
     if (!confirm(`Supprimer la pièce « ${doc.file_name} » ?`)) return;
     startTransition(async () => {
       const res = await deleteClientDocument(doc.id);
-      if (res.success) setDocs((prev) => prev.filter((d) => d.id !== doc.id));
-      else setError(res.error ?? "Suppression impossible.");
+      if (res.success) {
+        setDocs((prev) => prev.filter((d) => d.id !== doc.id));
+        router.refresh(); // une exigence projet peut repasser « manquante »
+      } else setError(res.error ?? "Suppression impossible.");
     });
   }
 
@@ -129,7 +150,10 @@ export function ClientDocumentsPanel({ clientId, contractId, projectId, canManag
             <li key={doc.id} className="bo-docs-item">
               <span className="bo-docs-ic"><FileText size={15} aria-hidden /></span>
               <button type="button" className="bo-docs-name" onClick={() => handleDownload(doc)} title="Ouvrir">
-                <span className="bo-docs-fn">{doc.label || doc.file_name}</span>
+                <span className="bo-docs-fn">
+                  {doc.label || doc.file_name}
+                  {typeLabel(doc.doc_type) && <span className="bo-docs-type">{typeLabel(doc.doc_type)}</span>}
+                </span>
                 <span className="bo-docs-meta">
                   {humanSize(doc.size_bytes)}
                   {doc.uploaded_by_role === "client" ? " · déposé par le client" : ""}
@@ -167,6 +191,17 @@ export function ClientDocumentsPanel({ clientId, contractId, projectId, canManag
       {canUpload && (
         <>
           <form className="bo-docs-upload" onSubmit={handleUpload}>
+            <select
+              className="bo-input bo-docs-type-select"
+              value={docType}
+              onChange={(e) => setDocType(e.target.value)}
+              aria-label="Type de document"
+            >
+              <option value="">Type de document…</option>
+              {options.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
             <input ref={fileRef} type="file" className="bo-docs-file"
               accept="application/pdf,image/jpeg,image/png,image/webp" aria-label="Fichier à joindre" />
             <input ref={labelRef} type="text" className="bo-input bo-docs-label" placeholder="Libellé (optionnel)" />
