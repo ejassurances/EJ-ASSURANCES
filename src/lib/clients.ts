@@ -12,6 +12,7 @@ export async function getAccessibleClients(user: CurrentUser) {
   let query = supabase
     .from("clients")
     .select("id, full_name, email, phone, family_context, notes, created_at")
+    .is("archived_at", null) // les fiches archivées ne comptent plus / n'apparaissent plus
     .order("created_at", { ascending: false });
 
   if (user.role === "client") {

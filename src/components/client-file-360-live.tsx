@@ -17,7 +17,7 @@ import { clientStatus, contractStatus } from "@/components/ui/status-maps";
 import type { BorrowerProject } from "@/lib/project-workflow";
 import {
   FileText, Users, MessageSquare, Phone, Mail, Calendar, Video,
-  StickyNote, Plus, Trash2, Shield, ChevronDown, ChevronUp,
+  StickyNote, Plus, Trash2, Shield, ShieldCheck, ChevronDown, ChevronUp,
   Building2, User, MapPin, Tag, Edit3,
   Clock, CheckCircle2, BriefcaseBusiness
 } from "lucide-react";
@@ -222,6 +222,12 @@ export function ClientFile360Live({ clientId, initialData }: Props) {
             inviteSentAt={client.invite_sent_at}
             hasPortalAccount={Boolean(client.profile_id || client.supabase_user_id)}
           />
+          <Link
+            href={`/admin/conformite/lcb-ft?client=${encodeURIComponent(client.full_name as string)}&clientId=${clientId}`}
+            className="cf360-lcbft-btn"
+          >
+            <ShieldCheck size={14} aria-hidden /> Contrôle LCB-FT
+          </Link>
           <Link href={`/admin/clients/${clientId}/modifier`} className="cf360-edit-btn">
             <Edit3 size={14} aria-hidden /> Modifier
           </Link>
