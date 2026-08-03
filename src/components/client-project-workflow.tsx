@@ -31,6 +31,40 @@ type ClientProjectWorkflowProps = {
   projects: BorrowerProject[];
 };
 
+type AmortAIResult = {
+  extracted: {
+    bank_name: string | null;
+    loan_amount: number | null;
+    annual_rate_percent: number | null;
+    duration_months: number | null;
+    first_payment_date: string | null;
+    monthly_payment: number | null;
+    current_insurer: string | null;
+    current_annual_premium: number | null;
+    borrower_quotity: number | null;
+    co_borrower_quotity: number | null;
+    confidence: number | null;
+    notes: string | null;
+  };
+  projection: {
+    effectiveDate: string | null;
+    monthlyPayment: number | null;
+    paymentsElapsed: number;
+    remainingMonths: number;
+    remainingCapitalAtEffective: number | null;
+    insuredCapitalRemaining: number | null;
+    currentInsuranceRemaining: number | null;
+  } | null;
+};
+
+const euro = (value: number | null | undefined) =>
+  value === null || value === undefined
+    ? "—"
+    : value.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
+const frDate = (value: string | null | undefined) =>
+  value ? new Date(value).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : "—";
+
 const initialState: ProjectActionState = { status: "idle", message: "" };
 
 const statusLabels: Record<ProjectStepStatus, string> = {
@@ -58,6 +92,46 @@ export function ClientProjectWorkflow({ clientId, projects }: ClientProjectWorkf
     initialState,
   );
 
+  // ── Intake IA « tableau d'amortissement » (début de workflow emprunteur) ────
+  const [amortAI, setAmortAI] = useState<AmortAIResult | null>(null);
+  const [amortBusy, setAmortBusy] = useState(false);
+  const [amortError, setAmortError] = useState<string | null>(null);
+  const [bankDebitDate, setBankDebitDate] = useState("");
+
+  async function analyzeAmortization(file: File) {
+    setAmortError(null);
+    setAmortBusy(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("read-failed"));
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch("/api/ia/amortization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileData: dataUrl,
+          fileName: file.name,
+          mimeType: file.type,
+          bankDebitDate: bankDebitDate || null,
+          clientId,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setAmortError(json?.error ?? "Analyse impossible.");
+        return;
+      }
+      setAmortAI(json as AmortAIResult);
+    } catch {
+      setAmortError("Analyse impossible. Réessayez avec un document plus net.");
+    } finally {
+      setAmortBusy(false);
+    }
+  }
+
   const ongoingProjects = projects.filter(
     (project) => !["closed", "signed", "archived", "terminated"].includes(project.status),
   );
@@ -69,6 +143,21 @@ export function ClientProjectWorkflow({ clientId, projects }: ClientProjectWorkf
   const progress = getProjectProgress(activeProject);
   const needs = activeProject?.project_borrower_needs?.[0] ?? null;
   const scooterNeeds = activeProject?.scooter_insurance_needs?.[0] ?? null;
+
+  // Valeurs de pré-remplissage du recueil : priorité à l'extraction IA, sinon au recueil existant.
+  const ax = amortAI?.extracted;
+  const proj = amortAI?.projection;
+  const prefill = {
+    bankName: ax?.bank_name ?? needs?.bank_name ?? "",
+    loanAmount: ax?.loan_amount ?? needs?.loan_amount ?? "",
+    loanDurationMonths: ax?.duration_months ?? needs?.loan_duration_months ?? "",
+    remainingCapital: proj?.remainingCapitalAtEffective ?? needs?.remaining_capital ?? "",
+    currentAnnualPremium: ax?.current_annual_premium ?? needs?.current_annual_premium ?? "",
+    loanStartDate: ax?.first_payment_date ?? needs?.loan_start_date ?? "",
+    currentInsurer: ax?.current_insurer ?? needs?.current_insurer ?? "",
+    borrowerQuotity: ax?.borrower_quotity ?? Number(needs?.requested_quotities?.borrower ?? 100),
+    coBorrowerQuotity: ax?.co_borrower_quotity ?? Number(needs?.requested_quotities?.coBorrower ?? 0),
+  };
   const deliveries = activeProject?.project_deliveries ?? [];
   const signatures = activeProject?.project_signatures ?? [];
   const imports = activeProject?.project_email_imports?.filter((item) => !item.excluded) ?? [];
@@ -169,11 +258,56 @@ export function ClientProjectWorkflow({ clientId, projects }: ClientProjectWorkf
             {activeStep.key === "needs" && !isScooter && (
               <>
                 <div className="bo-wf-hint">✨ Les données connues sont pré-remplies depuis la fiche client. Vous ne complétez que ce qui manque.</div>
-                <form action={needsFormAction} id="wf-form" className="project-needs-form">
+
+                {/* Intake IA : tableau d'amortissement → extraction + calcul CRD à la date d'effet */}
+                <div className="amort-ai">
+                  <div className="amort-ai-head">
+                    <b>Analyse IA du tableau d'amortissement</b>
+                    <span>Importez le tableau (PDF ou image) : l'IA pré-remplit le recueil et calcule le capital restant dû à la date d'effet.</span>
+                  </div>
+                  <div className="amort-ai-controls">
+                    <label>Date de prélèvement prévue par la banque
+                      <input
+                        type="date"
+                        value={bankDebitDate}
+                        onChange={(event) => setBankDebitDate(event.target.value)}
+                      />
+                    </label>
+                    <label>Tableau d'amortissement
+                      <input
+                        type="file"
+                        accept="application/pdf,image/png,image/jpeg,image/webp"
+                        disabled={amortBusy}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void analyzeAmortization(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {amortBusy && <p className="amort-ai-status">Analyse en cours…</p>}
+                  {amortError && <p className="form-error">{amortError}</p>}
+                  {proj && (
+                    <div className="amort-ai-results">
+                      <div><small>Date d'effet (prélèvement + 3 mois)</small><b>{frDate(proj.effectiveDate)}</b></div>
+                      <div><small>Capital restant dû à la date d'effet</small><b>{euro(proj.remainingCapitalAtEffective)}</b></div>
+                      <div><small>Capital assuré restant (quotité)</small><b>{euro(proj.insuredCapitalRemaining)}</b></div>
+                      <div><small>Primes restantes chez l'assureur actuel</small><b>{euro(proj.currentInsuranceRemaining)}</b></div>
+                      <div><small>Mensualité (hors assurance)</small><b>{euro(proj.monthlyPayment)}</b></div>
+                      <div><small>Échéances restantes</small><b>{proj.remainingMonths} mois</b></div>
+                    </div>
+                  )}
+                  {ax?.notes && <p className="amort-ai-note">Note IA : {ax.notes}</p>}
+                  {amortAI && (
+                    <p className="form-success">Recueil pré-rempli ci-dessous — vérifiez puis enregistrez.</p>
+                  )}
+                </div>
+
+                <form key={amortAI ? "needs-ai" : "needs-base"} action={needsFormAction} id="wf-form" className="project-needs-form">
                   <input type="hidden" name="projectId" value={activeProject.id} />
                   <input type="hidden" name="clientId" value={clientId} />
                   <div className="project-needs-grid">
-                    <label>Banque<input name="bankName" defaultValue={needs?.bank_name ?? ""} placeholder="Banque prêteuse" /></label>
+                    <label>Banque<input name="bankName" defaultValue={prefill.bankName} placeholder="Banque prêteuse" /></label>
                     <label>Type d'opération
                       <select name="operationType" defaultValue={needs?.delegation_or_substitution ?? "Substitution assurance emprunteur"}>
                         <option>Delegation assurance emprunteur</option>
@@ -181,15 +315,15 @@ export function ClientProjectWorkflow({ clientId, projects }: ClientProjectWorkf
                         <option>Renegociation / optimisation</option>
                       </select>
                     </label>
-                    <label>Montant emprunté<input name="loanAmount" type="number" min="0" defaultValue={needs?.loan_amount ?? ""} /></label>
-                    <label>Durée en mois<input name="loanDurationMonths" type="number" min="0" defaultValue={needs?.loan_duration_months ?? ""} /></label>
-                    <label>Capital restant dû<input name="remainingCapital" type="number" min="0" defaultValue={needs?.remaining_capital ?? ""} /></label>
-                    <label>Prime annuelle actuelle<input name="currentAnnualPremium" type="number" min="0" defaultValue={needs?.current_annual_premium ?? ""} /></label>
-                    <label>Date début prêt<input name="loanStartDate" type="date" defaultValue={needs?.loan_start_date ?? ""} /></label>
+                    <label>Montant emprunté<input name="loanAmount" type="number" min="0" defaultValue={prefill.loanAmount} /></label>
+                    <label>Durée en mois<input name="loanDurationMonths" type="number" min="0" defaultValue={prefill.loanDurationMonths} /></label>
+                    <label>Capital restant dû<input name="remainingCapital" type="number" min="0" defaultValue={prefill.remainingCapital} /></label>
+                    <label>Prime annuelle actuelle<input name="currentAnnualPremium" type="number" min="0" defaultValue={prefill.currentAnnualPremium} /></label>
+                    <label>Date début prêt<input name="loanStartDate" type="date" defaultValue={prefill.loanStartDate} /></label>
                     <label>Date fin prêt<input name="loanEndDate" type="date" defaultValue={needs?.loan_end_date ?? ""} /></label>
-                    <label>Assureur actuel<input name="currentInsurer" defaultValue={needs?.current_insurer ?? ""} placeholder="Banque, CNP, Cardif…" /></label>
-                    <label>Quotité emprunteur 1<input name="borrowerQuotity" type="number" min="0" max="100" defaultValue={Number(needs?.requested_quotities?.borrower ?? 100)} /></label>
-                    <label>Quotité co-emprunteur<input name="coBorrowerQuotity" type="number" min="0" max="100" defaultValue={Number(needs?.requested_quotities?.coBorrower ?? 0)} /></label>
+                    <label>Assureur actuel<input name="currentInsurer" defaultValue={prefill.currentInsurer} placeholder="Banque, CNP, Cardif…" /></label>
+                    <label>Quotité emprunteur 1<input name="borrowerQuotity" type="number" min="0" max="100" defaultValue={prefill.borrowerQuotity} /></label>
+                    <label>Quotité co-emprunteur<input name="coBorrowerQuotity" type="number" min="0" max="100" defaultValue={prefill.coBorrowerQuotity} /></label>
                     <label>Objectif client<textarea name="objective" defaultValue={needs?.objective ?? ""} placeholder="Économiser, sécuriser le logement, adapter les quotités…" /></label>
                   </div>
                   <div className="project-guarantee-row">
