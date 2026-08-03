@@ -73,6 +73,22 @@ function formatClientError(message: string) {
 }
 
 // ── Créer un client ────────────────────────────────────────────────────────────
+// Liste légère des clients pour un sélecteur (rattachement personne liée / co-assuré).
+export async function listClientOptions(): Promise<{ id: string; full_name: string | null; email: string | null }[]> {
+  await requireRole(["admin", "courtier"]);
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) return [];
+
+  const { data } = await supabase
+    .from("clients")
+    .select("id, full_name, email")
+    .is("archived_at", null)
+    .order("full_name", { ascending: true })
+    .limit(500);
+
+  return (data ?? []) as { id: string; full_name: string | null; email: string | null }[];
+}
+
 export async function createClient(data: ClientFormData): Promise<ActionResult> {
   const user = await requireRole(["admin", "courtier"]);
   const supabase = await createSupabaseServerClient();
