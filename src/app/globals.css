@@ -1066,6 +1066,45 @@ h3 { font-size: clamp(18px, 2vw, 24px); letter-spacing: -.01em; }
 }
 
 /* LCB-FT dashboard */
+.lcb-client-focus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 12px;
+}
+.lcb-client-focus__label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #2563EB;
+}
+.lcb-client-focus strong {
+  font-size: 17px;
+  font-weight: 800;
+  color: #1E3A8A;
+}
+.lcb-client-focus__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #fff;
+  border: 1px solid #BFDBFE;
+  border-radius: 9px;
+  color: #1E40AF;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.lcb-client-focus__back:hover { background: #F5F8FF; }
 .lcb-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, .42fr);
@@ -3146,6 +3185,8 @@ h3 { font-size: clamp(18px, 2vw, 24px); letter-spacing: -.01em; }
 .cf360-hero-actions { flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-end; gap: 8px; }
 .cf360-edit-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); border-radius: 8px; color: white; font-size: 13px; font-weight: 600; text-decoration: none; transition: background .2s; }
 .cf360-edit-btn:hover { background: rgba(255,255,255,.25); }
+.cf360-lcbft-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: rgba(255,255,255,.95); border: 1px solid rgba(255,255,255,.9); border-radius: 8px; color: #1E40AF; font-size: 13px; font-weight: 700; text-decoration: none; transition: background .2s, transform .2s; }
+.cf360-lcbft-btn:hover { background: #fff; transform: translateY(-1px); }
 .client-portal-invite { display: grid; justify-items: end; gap: 6px; }
 .cf360-invite-btn { cursor: pointer; }
 .cf360-invite-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }

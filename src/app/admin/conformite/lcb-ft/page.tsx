@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowLeft,
   Clock,
   FileSearch,
   Gauge,
@@ -134,7 +137,18 @@ function badgeClass(prefix: string, value: string) {
 }
 
 export default function LcbFtPage() {
-  const [query, setQuery] = useState("");
+  return (
+    <Suspense fallback={null}>
+      <LcbFtContent />
+    </Suspense>
+  );
+}
+
+function LcbFtContent() {
+  const searchParams = useSearchParams();
+  const focusClient = searchParams.get("client")?.trim() ?? "";
+  const focusClientId = searchParams.get("clientId")?.trim() ?? "";
+  const [query, setQuery] = useState(focusClient);
   const [riskFilter, setRiskFilter] = useState<RiskLevel | "tous">("tous");
 
   const filteredCases = useMemo(() => {
@@ -167,6 +181,20 @@ export default function LcbFtPage() {
       parentHref="/admin/conformite"
       parentLabel="Conformité"
     >
+      {focusClient && (
+        <div className="lcb-client-focus">
+          <div>
+            <span className="lcb-client-focus__label">Contrôle LCB-FT du client</span>
+            <strong>{focusClient}</strong>
+          </div>
+          {focusClientId && (
+            <Link href={`/admin/clients/${focusClientId}`} className="lcb-client-focus__back">
+              <ArrowLeft size={14} aria-hidden /> Retour à la fiche
+            </Link>
+          )}
+        </div>
+      )}
+
       <section className="lcb-hero">
         <div>
           <p className="eyebrow">Priorité conformité</p>
