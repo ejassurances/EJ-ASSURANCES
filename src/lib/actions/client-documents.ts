@@ -108,7 +108,6 @@ export async function uploadClientDocument(formData: FormData): Promise<DocActio
   const file = formData.get("file");
 
   if (!clientId) return { success: false, error: "Client manquant." };
-  if (!contractId && !projectId) return { success: false, error: "Rattachez la pièce à un contrat ou un projet." };
   if (!(file instanceof File) || file.size === 0) return { success: false, error: "Aucun fichier sélectionné." };
   if (file.size > MAX_SIZE) return { success: false, error: "Fichier trop volumineux (10 Mo maximum)." };
   if (file.type && !ALLOWED_MIME.includes(file.type)) {
@@ -119,7 +118,7 @@ export async function uploadClientDocument(formData: FormData): Promise<DocActio
   if (!access) return { success: false, error: "Accès non autorisé à ce dossier." };
 
   const safeName = file.name.replace(/[^\w.\-]+/g, "_").slice(-120);
-  const scope = contractId ? `contract/${contractId}` : `project/${projectId}`;
+  const scope = contractId ? `contract/${contractId}` : projectId ? `project/${projectId}` : "general";
   const path = `${clientId}/${scope}/${crypto.randomUUID()}-${safeName}`;
 
   const buffer = Buffer.from(await file.arrayBuffer());
