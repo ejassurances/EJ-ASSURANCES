@@ -25,10 +25,13 @@ create table if not exists public.client_documents (
   uploaded_by uuid,
   uploaded_by_role text not null default 'staff'
     check (uploaded_by_role in ('staff', 'mandataire', 'client')),
-  created_at timestamptz not null default now(),
-  -- Rattachement obligatoire à un contrat OU un projet.
-  constraint client_documents_scope_chk check (contract_id is not null or project_id is not null)
+  created_at timestamptz not null default now()
+  -- Une pièce peut être rattachée au client seul (KYC, pièce d'identité), à un
+  -- contrat ou à un projet. Aucun rattachement contrat/projet n'est obligatoire.
 );
+
+-- Migration d'un schéma antérieur qui imposait un contrat ou un projet.
+alter table public.client_documents drop constraint if exists client_documents_scope_chk;
 
 create index if not exists client_documents_client_idx on public.client_documents (client_id);
 create index if not exists client_documents_contract_idx on public.client_documents (contract_id);

@@ -521,34 +521,48 @@ export function ClientFile360Live({ clientId, initialData }: Props) {
         )}
 
         {activeTab === "documents" && (
-          <div className="cf360-section">
-            <div className="cf360-section-header">
-              <FileText size={15} aria-hidden />
-              <span>Documents synchronises Drive</span>
+          <div className="cf360-tab-content">
+            <div className="cf360-section">
+              <div className="cf360-section-header">
+                <FileText size={15} aria-hidden />
+                <span>Documents du dossier</span>
+              </div>
+              <p className="cf360-section-hint">
+                Déposez vos pièces directement depuis le CRM (KYC, pièce d'identité, justificatifs…).
+                Chaque pièce est <strong>interne</strong> par défaut ; activez « Visible client » pour la partager dans l'espace client.
+              </p>
+              <ClientDocumentsPanel clientId={clientId} canManage />
             </div>
-            {drive_documents.length === 0 ? (
-              <div className="cf360-empty">
-                Aucun document Drive rattache a cette fiche client pour le moment.
+
+            <div className="cf360-section">
+              <div className="cf360-section-header">
+                <FileText size={15} aria-hidden />
+                <span>Documents synchronisés depuis Drive</span>
               </div>
-            ) : (
-              <div className="cf360-list">
-                {drive_documents.map((document) => (
-                  <div key={document.id} className="cf360-list-item">
-                    <div>
-                      <strong>{document.file_name}</strong>
-                      <small>
-                        {document.document_type} - nomenclature {document.nomenclature_status} - {fmt(document.detected_at)}
-                      </small>
+              {drive_documents.length === 0 ? (
+                <div className="cf360-empty">
+                  Aucun document Drive rattaché à cette fiche client pour le moment.
+                </div>
+              ) : (
+                <div className="cf360-list">
+                  {drive_documents.map((document) => (
+                    <div key={document.id} className="cf360-list-item">
+                      <div>
+                        <strong>{document.file_name}</strong>
+                        <small>
+                          {document.document_type} - nomenclature {document.nomenclature_status} - {fmt(document.detected_at)}
+                        </small>
+                      </div>
+                      {document.file_url && (
+                        <a className="cf360-add-btn" href={document.file_url} target="_blank" rel="noreferrer">
+                          Ouvrir Drive
+                        </a>
+                      )}
                     </div>
-                    {document.file_url && (
-                      <a className="cf360-add-btn" href={document.file_url} target="_blank" rel="noreferrer">
-                        Ouvrir Drive
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

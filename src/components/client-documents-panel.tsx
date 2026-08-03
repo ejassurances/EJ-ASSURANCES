@@ -106,8 +106,9 @@ export function ClientDocumentsPanel({ clientId, contractId, projectId, canManag
 
   const canDelete = (doc: ClientDocument) =>
     canManage || (isClient && doc.uploaded_by_role === "client");
-  // L'ajout n'est possible que dans le contexte d'un contrat ou d'un projet précis.
-  const canUpload = Boolean(contractId || projectId);
+  // Le cabinet/mandataire peut déposer au niveau de la fiche (KYC, pièce d'identité)
+  // comme au niveau d'un contrat ou d'un projet précis.
+  const canUpload = canManage || Boolean(contractId || projectId);
 
   return (
     <div className="bo-docs">
