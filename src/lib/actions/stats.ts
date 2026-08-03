@@ -68,7 +68,7 @@ export async function getStatsDashboard(period: PeriodFilter = "12m"): Promise<S
 
   try {
     const [clientsRes, contratsRes, commissionsRes] = await Promise.all([
-      supabase.from("clients").select("id, created_at, statut"),
+      supabase.from("clients").select("id, created_at, statut").is("archived_at", null),
       supabase.from("contracts").select("id, created_at, statut, prime_annuelle, taux_commission"),
       supabase.from("commissions").select("montant_recu, montant_attendu, statut, date_bordereau"),
     ]);
@@ -174,7 +174,7 @@ export async function getStatsCommercial(): Promise<StatsCommercial> {
   if (!supabase) return getMockCommercial();
 
   try {
-    const { data: clients } = await supabase.from("clients").select("statut");
+    const { data: clients } = await supabase.from("clients").select("statut").is("archived_at", null);
     if (!clients || clients.length === 0) return getMockCommercial();
 
     const leads = clients.filter((c) => c.statut === "prospect").length;
@@ -216,7 +216,8 @@ export async function getStatsPortefeuille(): Promise<StatsPortefeuille> {
   try {
     const { data: clients } = await supabase
       .from("clients")
-      .select("id, prenom, nom, email, statut, created_at");
+      .select("id, prenom, nom, email, statut, created_at")
+      .is("archived_at", null);
 
     const { data: contrats } = await supabase
       .from("contracts")
