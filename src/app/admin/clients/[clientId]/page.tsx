@@ -31,13 +31,15 @@ export default async function AdminClientPage({
 
   const supabase = await createSupabaseServerClient();
   let emprunteurDossierId: string | null = null;
+  let emprunteurDossierSource: string | null = null;
   if (supabase) {
     const { data: dos } = await supabase
       .from("emprunteur_dossiers")
-      .select("id")
+      .select("id, source")
       .eq("client_id", clientId)
       .maybeSingle();
     emprunteurDossierId = dos?.id ?? null;
+    emprunteurDossierSource = dos?.source ?? null;
   }
 
   return (
@@ -71,7 +73,11 @@ export default async function AdminClientPage({
       {emprunteurDossierId && (
         <Link href="/admin/emprunteur" className="bo-source-banner">
           <FileText size={15} aria-hidden />
-          <span>Ce client provient du tunnel Assurance Emprunteur</span>
+          <span>
+            {emprunteurDossierSource === "recueil"
+              ? "Projet Assurance Emprunteur issu du recueil des besoins"
+              : "Ce client provient du tunnel Assurance Emprunteur"}
+          </span>
           <span className="lnk">Voir le dossier →</span>
         </Link>
       )}
