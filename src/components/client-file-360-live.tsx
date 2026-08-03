@@ -553,7 +553,7 @@ export function ClientFile360Live({ clientId, initialData }: Props) {
                           {document.document_type} - nomenclature {document.nomenclature_status} - {fmt(document.detected_at)}
                         </small>
                       </div>
-                      {document.file_url && (
+                      {document.file_url && /^https?:\/\//i.test(document.file_url) && (
                         <a className="cf360-add-btn" href={document.file_url} target="_blank" rel="noreferrer">
                           Ouvrir Drive
                         </a>
