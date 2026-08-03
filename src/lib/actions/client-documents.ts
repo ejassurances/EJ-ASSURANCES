@@ -27,19 +27,6 @@ export type ClientDocument = {
   created_at: string;
 };
 
-// Types de pièces KYC proposés au niveau de la fiche client.
-// La clé reprend, quand elle existe, la clé d'exigence projet (document_key)
-// pour qu'un dépôt satisfasse automatiquement l'exigence correspondante.
-export const KYC_DOCUMENT_TYPES: { value: string; label: string }[] = [
-  { value: "identity", label: "Pièce d'identité (CNI, passeport)" },
-  { value: "proof_of_address", label: "Justificatif de domicile" },
-  { value: "rib", label: "RIB / IBAN" },
-  { value: "livret_famille", label: "Livret de famille" },
-  { value: "income_proof", label: "Justificatif de revenus" },
-  { value: "current_insurance_certificate", label: "Contrat / notice assurance actuelle" },
-  { value: "other", label: "Autre document" },
-];
-
 // Répercute un dépôt sur les exigences documentaires des projets du client :
 // toute exigence « manquante » dont la clé correspond au type déposé passe « reçue ».
 async function markRequirementsReceived(
