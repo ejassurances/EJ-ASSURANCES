@@ -110,8 +110,11 @@ export function ClientDocumentsPanel({ clientId, contractId, projectId, canManag
 
   async function handleDownload(doc: ClientDocument) {
     const res = await getClientDocumentSignedUrl(doc.id);
-    if (res.url) window.open(res.url, "_blank", "noopener,noreferrer");
-    else setError(res.error ?? "Lien indisponible.");
+    if (!res.url) { setError(res.error ?? "Lien indisponible."); return; }
+    // window.open peut être bloqué dans les webviews mobiles (« This page couldn't
+    // load »). On tente un nouvel onglet, avec repli sur la navigation courante.
+    const win = window.open(res.url, "_blank", "noopener,noreferrer");
+    if (!win) window.location.assign(res.url);
   }
 
   function handleDelete(doc: ClientDocument) {
