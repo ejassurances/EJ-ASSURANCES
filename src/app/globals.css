@@ -4453,6 +4453,8 @@ h3 { font-size: clamp(18px, 2vw, 24px); letter-spacing: -.01em; }
 .app-layout .bo-docs-file { font-size: 12.5px; color: var(--bo-muted); flex: 1; min-width: 160px; }
 .app-layout .bo-docs-file::file-selector-button { font: inherit; font-size: 12.5px; font-weight: 600; color: var(--bo-ink); background: var(--bo-surface-3); border: 1px solid var(--bo-border-strong); border-radius: 8px; padding: 7px 12px; margin-right: 10px; cursor: pointer; }
 .app-layout .bo-docs-label { flex: 1; min-width: 140px; padding: 8px 10px; font-size: 13px; }
+.app-layout .bo-docs-type-select { flex: 1; min-width: 180px; padding: 8px 10px; font-size: 13px; }
+.app-layout .bo-docs-type { display: inline-block; margin-left: 8px; padding: 1px 8px; font-size: 11px; font-weight: 700; color: var(--bo-teal); background: var(--bo-teal-050); border: 1px solid var(--bo-info-bd); border-radius: 999px; vertical-align: middle; }
 .app-layout .bo-docs-add { flex-shrink: 0; }
 .app-layout .bo-docs-hint { font-size: 11.5px; color: var(--bo-faint); margin: 8px 0 0; }
 .app-layout .bo-spin { animation: bo-spin 1s linear infinite; }

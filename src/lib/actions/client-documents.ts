@@ -20,11 +20,62 @@ export type ClientDocument = {
   mime_type: string | null;
   size_bytes: number | null;
   label: string | null;
+  doc_type: string | null;
   visible_to_client: boolean;
   uploaded_by: string | null;
   uploaded_by_role: string;
   created_at: string;
 };
+
+// Types de pièces KYC proposés au niveau de la fiche client.
+// La clé reprend, quand elle existe, la clé d'exigence projet (document_key)
+// pour qu'un dépôt satisfasse automatiquement l'exigence correspondante.
+export const KYC_DOCUMENT_TYPES: { value: string; label: string }[] = [
+  { value: "identity", label: "Pièce d'identité (CNI, passeport)" },
+  { value: "proof_of_address", label: "Justificatif de domicile" },
+  { value: "rib", label: "RIB / IBAN" },
+  { value: "livret_famille", label: "Livret de famille" },
+  { value: "income_proof", label: "Justificatif de revenus" },
+  { value: "current_insurance_certificate", label: "Contrat / notice assurance actuelle" },
+  { value: "other", label: "Autre document" },
+];
+
+// Répercute un dépôt sur les exigences documentaires des projets du client :
+// toute exigence « manquante » dont la clé correspond au type déposé passe « reçue ».
+async function markRequirementsReceived(
+  supabase: ServiceClient,
+  clientId: string,
+  docType: string,
+  clientDocumentId: string,
+  projectId: string | null,
+) {
+  if (!docType || docType === "other") return;
+
+  // Périmètre : le projet visé si fourni, sinon tous les projets du client.
+  let projectIds: string[] = [];
+  if (projectId) {
+    projectIds = [projectId];
+  } else {
+    const { data: projects } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("client_id", clientId);
+    projectIds = (projects ?? []).map((p) => p.id as string);
+  }
+  if (projectIds.length === 0) return;
+
+  await supabase
+    .from("project_document_requirements")
+    .update({
+      status: "received",
+      source: "crm_upload",
+      source_metadata: { client_document_id: clientDocumentId },
+      updated_at: new Date().toISOString(),
+    })
+    .in("project_id", projectIds)
+    .eq("document_key", docType)
+    .eq("status", "missing");
+}
 
 export type DocActionResult = { success: boolean; error?: string };
 
@@ -105,6 +156,7 @@ export async function uploadClientDocument(formData: FormData): Promise<DocActio
   const contractId = (formData.get("contract_id") as string) || null;
   const projectId = (formData.get("project_id") as string) || null;
   const label = ((formData.get("label") as string) || "").trim() || null;
+  const docType = ((formData.get("doc_type") as string) || "").trim() || null;
   const file = formData.get("file");
 
   if (!clientId) return { success: false, error: "Client manquant." };
@@ -128,23 +180,33 @@ export async function uploadClientDocument(formData: FormData): Promise<DocActio
   if (upErr) return { success: false, error: "L'envoi du fichier a échoué." };
 
   const isClient = access === "client";
-  const { error: insErr } = await supabase.from("client_documents").insert({
-    client_id: clientId,
-    contract_id: contractId,
-    project_id: projectId,
-    file_name: file.name.slice(-160),
-    storage_path: path,
-    mime_type: file.type || null,
-    size_bytes: file.size,
-    label,
-    visible_to_client: isClient, // pièce déposée par le client → visible de lui
-    uploaded_by: user.id,
-    uploaded_by_role: access,
-  });
+  const { data: inserted, error: insErr } = await supabase
+    .from("client_documents")
+    .insert({
+      client_id: clientId,
+      contract_id: contractId,
+      project_id: projectId,
+      file_name: file.name.slice(-160),
+      storage_path: path,
+      mime_type: file.type || null,
+      size_bytes: file.size,
+      label,
+      doc_type: docType,
+      visible_to_client: isClient, // pièce déposée par le client → visible de lui
+      uploaded_by: user.id,
+      uploaded_by_role: access,
+    })
+    .select("id")
+    .single();
 
-  if (insErr) {
+  if (insErr || !inserted) {
     await supabase.storage.from(BUCKET).remove([path]);
     return { success: false, error: "La pièce n'a pas pu être enregistrée." };
+  }
+
+  // Satisfaction automatique des exigences documentaires du projet / des projets du client.
+  if (docType) {
+    await markRequirementsReceived(supabase, clientId, docType, inserted.id as string, projectId);
   }
 
   revalidatePath(`/admin/clients/${clientId}`);
@@ -207,6 +269,17 @@ export async function deleteClientDocument(docId: string): Promise<DocActionResu
   await supabase.storage.from(BUCKET).remove([doc.storage_path as string]);
   const { error } = await supabase.from("client_documents").delete().eq("id", docId);
   if (error) return { success: false, error: "Suppression impossible." };
+
+  // Si cette pièce satisfaisait des exigences projet, on les rebascule en « manquant ».
+  await supabase
+    .from("project_document_requirements")
+    .update({
+      status: "missing",
+      source: null,
+      source_metadata: {},
+      updated_at: new Date().toISOString(),
+    })
+    .eq("source_metadata->>client_document_id", docId);
 
   revalidatePath(`/admin/clients/${doc.client_id}`);
   revalidatePath("/client");
