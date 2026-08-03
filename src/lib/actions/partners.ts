@@ -42,6 +42,7 @@ export type PartnerDistributedContract = {
   partner_id: string;
   contract_name: string;
   product_category: string;
+  insurer_name?: string | null;
   product_code: string | null;
   status: string;
   target_clients: string[];
@@ -197,6 +198,7 @@ export async function createPartnerDistributedContractAction(
       partner_id: partnerId,
       contract_name: contractName,
       product_category: productCategory,
+      insurer_name: String(formData.get("insurerName") ?? "").trim() || null,
       product_code: String(formData.get("productCode") ?? "").trim() || null,
       status: String(formData.get("status") ?? "active"),
       target_clients: formData.getAll("targetClients").map(String).filter(Boolean),
