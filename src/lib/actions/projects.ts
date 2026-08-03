@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { sendCrmEmail } from "@/lib/email/gmail";
+import { legalSignatureHtml } from "@/lib/email/legal-signature";
 import {
   borrowerRequiredDocuments,
   borrowerWorkflowSteps,
@@ -544,7 +546,12 @@ export async function updateBorrowerWorkflowAction(formData: FormData) {
     .eq("step_key", stepKey);
 
   if (action === "send") {
-    await createDeliveryForStep(supabase, projectId, clientId, stepKey, user.id, subscriptionLink);
+    if (stepKey === "mission") {
+      // Étape DER : envoi réel du Document d'Entrée en Relation au client.
+      await sendDerForProject(supabase, projectId, clientId, user.id, user.email);
+    } else {
+      await createDeliveryForStep(supabase, projectId, clientId, stepKey, user.id, subscriptionLink);
+    }
   }
 
   if (action === "send" && (stepKey === "mission" || stepKey === "advice")) {
@@ -619,6 +626,91 @@ async function updateDocumentGate(
     })
     .eq("project_id", projectId)
     .eq("document_key", documentKey);
+}
+
+// Étape DER : envoie réellement le Document d'Entrée en Relation au client
+// (email avec lien), le dépose dans son Classeur ACPR, et journalise une preuve
+// d'envoi honnête (statut = résultat réel de l'envoi).
+async function sendDerForProject(
+  supabase: NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>,
+  projectId: string,
+  clientId: string,
+  userId: string,
+  userEmail: string,
+) {
+  const { data: client } = await supabase
+    .from("clients")
+    .select("id, full_name, email, profile_id")
+    .eq("id", clientId)
+    .maybeSingle();
+
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.replace(/^/, "https://") ??
+    "https://www.ej-assurances.fr";
+  const derUrl = `${siteUrl}/documents/der-ej-assurances.html`;
+
+  let status = "failed";
+  let detail = "Email du client manquant : DER non envoyé.";
+
+  if (client?.email) {
+    const firstName = String(client.full_name ?? "").trim().split(/\s+/)[0] || "";
+    const html = `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#333;font-size:15px;line-height:1.6;">
+        <p>Bonjour ${firstName || "et bienvenue"},</p>
+        <p>Dans le cadre de notre entrée en relation, nous vous transmettons notre
+        <strong>Document d'Entrée en Relation (DER)</strong>, qui précise notre statut de courtier,
+        nos obligations et le cadre de notre accompagnement.</p>
+        <p><a href="${derUrl}" style="display:inline-block;background:#0a193c;color:#fff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">Consulter votre DER</a></p>
+        <p style="color:#666;font-size:13px;">Ce document est également disponible à tout moment dans votre espace client, rubrique « Classeur ACPR ».</p>
+        ${legalSignatureHtml()}
+      </div>`;
+
+    const res = await sendCrmEmail({
+      to: client.email as string,
+      subject: "Votre Document d'Entrée en Relation (DER) — EJ Partners Assurances",
+      html,
+      replyTo: userEmail,
+    });
+    status = res.success ? "sent" : "failed";
+    detail = res.success
+      ? `DER envoyé à ${client.email}.`
+      : `Échec d'envoi du DER : ${res.error ?? "erreur inconnue"}.`;
+
+    // Dépôt dans le Classeur ACPR (idempotent : une seule entrée DER par client).
+    if (res.success && client.profile_id) {
+      const { data: existing } = await supabase
+        .from("documents")
+        .select("id")
+        .eq("client_id", clientId)
+        .eq("document_type", "classeur_acpr_der")
+        .maybeSingle();
+      if (!existing) {
+        await supabase.from("documents").insert({
+          owner_id: client.profile_id,
+          uploaded_by: userId,
+          client_id: clientId,
+          storage_bucket: "public",
+          storage_path: "/documents/der-ej-assurances.html",
+          document_type: "classeur_acpr_der",
+          visibility: "client",
+        });
+      }
+    }
+  }
+
+  // Preuve d'envoi honnête.
+  await supabase.from("project_deliveries").insert({
+    project_id: projectId,
+    client_id: clientId,
+    delivery_type: "der",
+    channel: "email",
+    status,
+    subject: "Document d'Entrée en Relation (DER)",
+    body: detail,
+    sent_at: new Date().toISOString(),
+    created_by: userId,
+  });
 }
 
 function getNextStepStatus(action: WorkflowAction): ProjectStepStatus {
