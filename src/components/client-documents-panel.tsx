@@ -12,9 +12,9 @@ import {
   toggleClientDocumentVisibility,
   deleteClientDocument,
   getClientDocumentSignedUrl,
-  KYC_DOCUMENT_TYPES,
   type ClientDocument,
 } from "@/lib/actions/client-documents";
+import { KYC_DOCUMENT_TYPES } from "@/lib/client-document-types";
 
 type TypeOption = { value: string; label: string };
 
