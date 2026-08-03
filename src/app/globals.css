@@ -4763,3 +4763,9 @@ h3 { font-size: clamp(18px, 2vw, 24px); letter-spacing: -.01em; }
 /* Chrome bleu : sidebar + fond de travail légèrement bleuté */
 .app-layout .sidebar { background: linear-gradient(180deg, #1E3A8A 0%, #17307a 100%); }
 .app-layout .workspace { background: #F5F8FF; }
+
+/* Sous-navigation contextuelle d'un domaine (menu CRM allégé) */
+.app-layout .bo-subnav { display: flex; gap: 4px; flex-wrap: wrap; padding: 10px 26px 0; margin-bottom: -6px; }
+.app-layout .bo-subnav-tab { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; color: var(--bo-muted); padding: 8px 13px; border-radius: 9px; white-space: nowrap; transition: .12s; }
+.app-layout .bo-subnav-tab:hover { background: var(--bo-surface-3); color: var(--bo-ink); }
+.app-layout .bo-subnav-tab.is-active { background: var(--bo-teal-050); color: var(--bo-teal); }
