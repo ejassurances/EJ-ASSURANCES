@@ -14,6 +14,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
+    // Vérification du rôle : réservé à l'équipe interne (admin / courtier).
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    if (!profile || !['admin', 'courtier'].includes(profile.role)) {
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { contenuBase64, typeFichier, texteDirecte, mode = 'ia' } = body;
 

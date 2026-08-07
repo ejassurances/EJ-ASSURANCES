@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import OpenAI from "openai";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { anonymiserPourIA, ageDepuisNaissance, labelClient, logIaUsage, warnRequete } from "@/lib/ia/audit-anonymise";
@@ -17,6 +18,14 @@ type Interaction = { created_at: string; type: string; titre: string; contenu: s
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
+    }
+    if (!["admin", "courtier"].includes(user.role)) {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    }
+
     const { clientId } = await req.json();
     if (!clientId) return NextResponse.json({ error: "clientId requis" }, { status: 400 });
 
