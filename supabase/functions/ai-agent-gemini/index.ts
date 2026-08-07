@@ -114,7 +114,7 @@ serve(async (req) => {
   try {
     const body = await req.json()
     const { action, ...params } = body
-    const supabase = createClient(Deno.env.get("SUPAAASE_URL"), Deno.env.get("SUPAAASE_SERVICE_ROLE_KEY"))
+    const supabase = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"))
     let result
     switch (action) {
       case "monitor_dossiers": result = await monitorDossiers(supabase); break
