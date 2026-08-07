@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getCurrentUser } from "@/lib/auth"
 
 async function getOAuthToken() {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -18,6 +19,14 @@ async function getOAuthToken() {
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: "Non authentifie" }, { status: 401 })
+    }
+    if (!["admin", "courtier"].includes(user.role)) {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 })
+    }
+
     const { searchParams } = new URL(req.url)
     const folderId = searchParams.get("folder_id")
     if (!folderId) return NextResponse.json({ error: "folder_id required" }, { status: 400 })
