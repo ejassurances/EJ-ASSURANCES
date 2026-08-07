@@ -8,6 +8,32 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")
 const GEMINI_MODEL = "gemini-1.5-pro-latest"
 
+// Vérifie l'authentification de l'appelant DANS le code (indépendamment du toggle
+// verify_jwt du Dashboard, qui accepte la clé anon publique et n'est donc pas une
+// vraie protection). Autorise le service role (appels serveur de confiance) ou un
+// JWT utilisateur valide de rôle interne (admin / courtier). Rejette header absent,
+// token invalide ou clé anon → 401 ; utilisateur non autorisé → 403.
+async function requireAuth(req) {
+  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim()
+  if (!token) return "unauthenticated"
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+  if (serviceKey && token === serviceKey) return "ok"
+  const url = Deno.env.get("SUPABASE_URL")
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")
+  if (!url || !anonKey) return "unauthenticated"
+  const authClient = createClient(url, anonKey, { global: { headers: { Authorization: "Bearer " + token } } })
+  const { data: { user }, error } = await authClient.auth.getUser()
+  if (error || !user) return "unauthenticated"
+  const admin = createClient(url, serviceKey)
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single()
+  if (!profile || !["admin", "courtier"].includes(profile.role)) return "forbidden"
+  return "ok"
+}
+
+function denied(status) {
+  return new Response(JSON.stringify({ error: status === 403 ? "Acces refuse" : "Non autorise" }), { status, headers: { ...CORS, "Content-Type": "application/json" } })
+}
+
 async function gemini(prompt, systemInstruction) {
   const body = { contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 2048 } }
   if (systemInstruction) body.systemInstruction = { parts: [{ text: systemInstruction }] }
@@ -82,6 +108,9 @@ async function ppeScreening(supabase, clientId) {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS })
+  const auth = await requireAuth(req)
+  if (auth === "forbidden") return denied(403)
+  if (auth !== "ok") return denied(401)
   try {
     const body = await req.json()
     const { action, ...params } = body

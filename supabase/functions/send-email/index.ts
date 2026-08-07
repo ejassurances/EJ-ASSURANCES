@@ -3,6 +3,34 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" }
 
+// Vérifie l'authentification de l'appelant DANS le code (indépendamment du toggle
+// verify_jwt du Dashboard, qui accepte la clé anon publique et n'est donc pas une
+// vraie protection). Autorise :
+//   - le service role (appels serveur de confiance : routes API, autres fonctions) ;
+//   - un JWT utilisateur valide de rôle interne (admin / courtier).
+// Rejette : header absent, token invalide, ou clé anon → 401 ; utilisateur non
+// autorisé → 403.
+async function requireAuth(req) {
+  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim()
+  if (!token) return "unauthenticated"
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+  if (serviceKey && token === serviceKey) return "ok"
+  const url = Deno.env.get("SUPABASE_URL")
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")
+  if (!url || !anonKey) return "unauthenticated"
+  const authClient = createClient(url, anonKey, { global: { headers: { Authorization: "Bearer " + token } } })
+  const { data: { user }, error } = await authClient.auth.getUser()
+  if (error || !user) return "unauthenticated"
+  const admin = createClient(url, serviceKey)
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single()
+  if (!profile || !["admin", "courtier"].includes(profile.role)) return "forbidden"
+  return "ok"
+}
+
+function denied(status) {
+  return new Response(JSON.stringify({ error: status === 403 ? "Acces refuse" : "Non autorise" }), { status, headers: { ...CORS, "Content-Type": "application/json" } })
+}
+
 async function getGmailToken() {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -40,6 +68,9 @@ const T = {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS })
+  const auth = await requireAuth(req)
+  if (auth === "forbidden") return denied(403)
+  if (auth !== "ok") return denied(401)
   try {
     const { type, to, client_id, data: tData } = await req.json()
     let email = to, rData = tData || {}
