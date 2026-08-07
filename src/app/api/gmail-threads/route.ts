@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getCurrentUser } from "@/lib/auth"
 import { createSupabaseServiceClient } from "@/lib/supabase/server"
 
 async function getOAuthToken() {
@@ -19,6 +20,14 @@ async function getOAuthToken() {
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: "Non authentifie" }, { status: 401 })
+    }
+    if (!["admin", "courtier"].includes(user.role)) {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 })
+    }
+
     const supabase = createSupabaseServiceClient()
     if (!supabase) {
       return NextResponse.json({ error: "Configuration Supabase manquante" }, { status: 500 })

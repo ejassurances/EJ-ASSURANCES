@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import OpenAI from "openai";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { labelClient, logIaUsage, warnRequete } from "@/lib/ia/audit-anonymise";
@@ -17,6 +18,14 @@ type Opportunity = { opportunites: { potentiel_ca: string }[] };
 
 export async function POST() {
   try {
+    const authUser = await getCurrentUser();
+    if (!authUser) {
+      return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
+    }
+    if (!["admin", "courtier"].includes(authUser.role)) {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    }
+
     const supabase = await createSupabaseServerClient();
     if (!supabase) return NextResponse.json({ error: "Connexion Supabase non disponible." }, { status: 500 });
 

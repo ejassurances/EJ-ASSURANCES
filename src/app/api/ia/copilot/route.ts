@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import OpenAI from "openai";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { anonymiserPourIA, labelClient, logIaUsage, warnRequete } from "@/lib/ia/audit-anonymise";
@@ -17,6 +18,14 @@ type InactiveClient = { id: string; full_name: string | null; email: string };
 
 export async function POST(req: NextRequest) {
   try {
+    const authUser = await getCurrentUser();
+    if (!authUser) {
+      return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
+    }
+    if (!["admin", "courtier"].includes(authUser.role)) {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    }
+
     const { message, context, clientSearch } = await req.json();
     const supabase = await createSupabaseServerClient();
     if (!supabase) return NextResponse.json({ error: "Connexion Supabase non disponible." }, { status: 500 });
