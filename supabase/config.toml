@@ -1,0 +1,15 @@
+# Configuration Supabase CLI.
+# Ce fichier code l'intention de sécurité ; il ne prend effet qu'au prochain
+# déploiement via la CLI (`supabase functions deploy <nom>`).
+project_id = "huneukcmqaftwhidyegi"
+
+# ── Edge Functions ───────────────────────────────────────────────────────────
+# verify_jwt = true : la fonction n'accepte plus d'invocation sans JWT valide.
+# Les appels applicatifs passent par le service role (JWT valide) → non impactés ;
+# seule l'invocation anonyme directe (faille ouverte) est fermée.
+
+[functions.ai-agent-gemini]
+verify_jwt = true
+
+[functions.send-email]
+verify_jwt = true
