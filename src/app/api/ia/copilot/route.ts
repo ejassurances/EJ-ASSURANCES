@@ -18,11 +18,11 @@ type InactiveClient = { id: string; full_name: string | null; email: string };
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
+    const authUser = await getCurrentUser();
+    if (!authUser) {
       return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
     }
-    if (!["admin", "courtier"].includes(user.role)) {
+    if (!["admin", "courtier"].includes(authUser.role)) {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
