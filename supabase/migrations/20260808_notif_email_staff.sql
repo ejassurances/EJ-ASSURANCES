@@ -51,14 +51,23 @@ begin
 end;
 $$;
 
--- Documents « majeurs » (RIB, CNI/identité, carte grise, contrat/assurance).
+-- Documents « majeurs » — LISTE FERMÉE (valeurs réellement utilisées, cf. code :
+-- KYC_DOCUMENT_TYPES + document_key des exigences projet). Match exact (insensible
+-- à la casse), pas de mots-clés.
+--   rib                            → RIB / IBAN
+--   identity                       → CNI / passeport (pièce d'identité)
+--   current_insurance_certificate  → Contrat / notice assurance actuelle
+--   carte_grise                    → Carte grise (⚠️ non présente à ce jour dans le
+--                                     schéma/code ; incluse par anticipation).
 create or replace function public.is_major_doc_type(t text) returns boolean
 language sql immutable
 as $$
-  select coalesce(
-    t ~* '(rib|identity|identit|cni|passeport|carte.?gris|immatricul|contrat|contract|insurance_certificate|assurance)',
-    false
-  );
+  select t is not null and lower(t) = any (array[
+    'rib',
+    'identity',
+    'current_insurance_certificate',
+    'carte_grise'
+  ]);
 $$;
 
 -- ── Cas 1a : documents (document_type) ───────────────────────────────────────
@@ -87,21 +96,20 @@ create trigger trg_documents_notify after insert or update on public.documents
 -- ── Cas 1b : client_documents (doc_type / label / file_name) ─────────────────
 create or replace function public.trg_notify_client_document_major() returns trigger
 language plpgsql security definer set search_path = public as $$
-declare
-  label_txt text := coalesce(new.doc_type, '') || ' ' || coalesce(new.label, '') || ' ' || coalesce(new.file_name, '');
 begin
-  if not public.is_major_doc_type(label_txt) then return new; end if;
+  -- Liste fermée : on ne se fie qu'au doc_type (les rows sans doc_type ne déclenchent pas).
+  if not public.is_major_doc_type(new.doc_type) then return new; end if;
   if tg_op = 'UPDATE' then
     if new.storage_path is not distinct from old.storage_path
        and coalesce(new.doc_type, '') is not distinct from coalesce(old.doc_type, '') then
       return new;
     end if;
     perform public.notify_staff(new.client_id,
-      'Document majeur modifié/remplacé (' || coalesce(new.doc_type, new.label, new.file_name) || ')',
+      'Document majeur modifié/remplacé (' || new.doc_type || ')',
       old.file_name, new.file_name);
   else
     perform public.notify_staff(new.client_id,
-      'Nouveau document majeur (' || coalesce(new.doc_type, new.label, new.file_name) || ')',
+      'Nouveau document majeur (' || new.doc_type || ')',
       null, new.file_name);
   end if;
   return new;
