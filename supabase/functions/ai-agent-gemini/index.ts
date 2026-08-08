@@ -62,7 +62,7 @@ const ALLOWED_INSTRUCTION_FILES = {
   // "gel_avoirs_screening":  "<drive_file_id>",
 }
 // Cache mémoire pour éviter un appel Drive à chaque requête (isolate chaud).
-const INSTRUCTION_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const INSTRUCTION_CACHE_TTL_MS = 12 * 60 * 1000 // 12 minutes
 const instructionCache = new Map()
 
 async function sha256Hex(text) {
@@ -99,10 +99,20 @@ async function loadSystemInstruction(supabase, agentKey, fallback) {
 
   try {
     const token = await getOAuthToken()
-    const res = await fetch(
-      "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId) + "?alt=media&supportsAllDrives=true",
+    // Auto-détection du format : un Google Doc NATIF ne se télécharge pas via
+    // alt=media (403 « Only files with binary content can be downloaded ») → il
+    // faut l'endpoint export. Les fichiers texte/markdown téléversés se lisent
+    // via alt=media.
+    const metaRes = await fetch(
+      "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId) + "?fields=mimeType&supportsAllDrives=true",
       { headers: { Authorization: "Bearer " + token } },
     )
+    if (!metaRes.ok) throw new Error("Drive meta HTTP " + metaRes.status)
+    const mimeType = (await metaRes.json())?.mimeType || ""
+    const contentUrl = mimeType === "application/vnd.google-apps.document"
+      ? "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId) + "/export?mimeType=text/plain"
+      : "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId) + "?alt=media&supportsAllDrives=true"
+    const res = await fetch(contentUrl, { headers: { Authorization: "Bearer " + token } })
     if (!res.ok) throw new Error("Drive HTTP " + res.status)
     const text = (await res.text()).trim()
     if (!text) throw new Error("Contenu vide")
