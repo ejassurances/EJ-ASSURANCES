@@ -49,6 +49,93 @@ async function getOAuthToken() {
   return access_token
 }
 
+// ── Chargement dynamique des system instructions depuis Google Drive ──────────
+// LISTE BLANCHE codée en dur : seuls ces drive_file_id peuvent être chargés, par
+// agent_key. Aucune découverte automatique de fichiers ; tout ID hors liste est
+// rejeté et journalisé. ⚠️ Renseigner les vrais IDs de fichiers Drive ci-dessous ;
+// tant qu'un agent_key n'a pas d'ID, on utilise l'instruction par défaut/en base.
+const ALLOWED_INSTRUCTION_FILES = {
+  // "client_query":          "<drive_file_id>",
+  // "ppe_screening":         "<drive_file_id>",
+  // "reconcile_commissions": "<drive_file_id>",
+  // "analyze_email":         "<drive_file_id>",
+  // "gel_avoirs_screening":  "<drive_file_id>",
+}
+// Cache mémoire pour éviter un appel Drive à chaque requête (isolate chaud).
+const INSTRUCTION_CACHE_TTL_MS = 12 * 60 * 1000 // 12 minutes
+const instructionCache = new Map()
+
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("")
+}
+
+// Renvoie la system instruction d'un agent : Drive si possible, sinon dernière
+// version connue en base, sinon la valeur par défaut. Ne plante jamais et ne
+// renvoie jamais une instruction vide. Journalise les échecs.
+async function loadSystemInstruction(supabase, agentKey, fallback) {
+  const cached = instructionCache.get(agentKey)
+  if (cached && (Date.now() - cached.at) < INSTRUCTION_CACHE_TTL_MS) return cached.content
+
+  const fileId = ALLOWED_INSTRUCTION_FILES[agentKey]
+  const { data: row } = await supabase
+    .from("agent_instructions").select("content, drive_file_id").eq("agent_key", agentKey).maybeSingle()
+  const lastKnown = row?.content || null
+
+  // Garde-fou liste blanche : un ID stocké différent de la liste blanche est rejeté + logué.
+  if (row?.drive_file_id && fileId && row.drive_file_id !== fileId) {
+    console.error("agent_instructions: drive_file_id hors liste blanche pour " + agentKey + " (" + row.drive_file_id + ") — ignoré")
+    await supabase.from("agent_instructions")
+      .update({ last_error: "drive_file_id hors liste blanche: " + row.drive_file_id, last_attempt_at: new Date().toISOString() })
+      .eq("agent_key", agentKey)
+  }
+
+  // Pas d'ID autorisé pour cet agent → aucun appel Drive.
+  if (!fileId) {
+    const content = lastKnown || fallback
+    instructionCache.set(agentKey, { content, at: Date.now() })
+    return content
+  }
+
+  try {
+    const token = await getOAuthToken()
+    // Auto-détection du format : un Google Doc NATIF ne se télécharge pas via
+    // alt=media (403 « Only files with binary content can be downloaded ») → il
+    // faut l'endpoint export. Les fichiers texte/markdown téléversés se lisent
+    // via alt=media.
+    const metaRes = await fetch(
+      "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId) + "?fields=mimeType&supportsAllDrives=true",
+      { headers: { Authorization: "Bearer " + token } },
+    )
+    if (!metaRes.ok) throw new Error("Drive meta HTTP " + metaRes.status)
+    const mimeType = (await metaRes.json())?.mimeType || ""
+    const contentUrl = mimeType === "application/vnd.google-apps.document"
+      ? "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId) + "/export?mimeType=text/plain"
+      : "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId) + "?alt=media&supportsAllDrives=true"
+    const res = await fetch(contentUrl, { headers: { Authorization: "Bearer " + token } })
+    if (!res.ok) throw new Error("Drive HTTP " + res.status)
+    const text = (await res.text()).trim()
+    if (!text) throw new Error("Contenu vide")
+    await supabase.from("agent_instructions").upsert({
+      agent_key: agentKey, drive_file_id: fileId, content: text, content_hash: await sha256Hex(text),
+      fetched_at: new Date().toISOString(), last_attempt_at: new Date().toISOString(), last_error: null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "agent_key" })
+    instructionCache.set(agentKey, { content: text, at: Date.now() })
+    return text
+  } catch (e) {
+    // Échec (fichier supprimé, Drive inaccessible, contenu vide) → repli + journalisation.
+    console.error("agent_instructions: échec chargement Drive pour " + agentKey + ": " + String(e))
+    await supabase.from("agent_instructions").upsert({
+      agent_key: agentKey, drive_file_id: fileId,
+      last_error: String(e), last_attempt_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }, { onConflict: "agent_key" })
+    const content = lastKnown || fallback
+    instructionCache.set(agentKey, { content, at: Date.now() })
+    return content
+  }
+}
+
 async function monitorDossiers(supabase) {
   const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString()
   const { data: staleProjects } = await supabase.from("projects").select("*, clients(prenom, nom, email)").not("status", "in", '("valide","resilie")').lt("updated_at", threeDaysAgo).limit(10)
@@ -75,7 +162,7 @@ async function analyzeEmail(supabase, gmailMessageId, clientId) {
   for (const part of parts) { if (part.mimeType === "text/plain" && part.body?.data) { body = atob(part.body.data.replace(/-/g,"+").replace(/_/g,"/")); break } }
   const headers = {}
   for (const h of (msg.payload?.headers || [])) headers[h.name.toLowerCase()] = h.value
-  const summary = await gemini("Resume cet email en 2-3 phrases. De: " + headers.from + " Sujet: " + headers.subject + " Corps: " + body.slice(0, 2000), "Assistant courtier. Sois concis.")
+  const summary = await gemini("Resume cet email en 2-3 phrases. De: " + headers.from + " Sujet: " + headers.subject + " Corps: " + body.slice(0, 2000), await loadSystemInstruction(supabase, "analyze_email", "Assistant courtier. Sois concis."))
   const gmailLink = "https://mail.google.com/mail/u/0/#all/" + gmailMessageId
   await supabase.from("email_logs").insert({ client_id: clientId, gmail_message_id: gmailMessageId, subject: headers.subject, from_email: headers.from, received_at: new Date(parseInt(msg.internalDate)).toISOString(), summary_gemini: summary, gmail_link: gmailLink, direction: "inbound" })
   return { summary, gmailLink }
@@ -84,7 +171,7 @@ async function analyzeEmail(supabase, gmailMessageId, clientId) {
 async function reconcileCommissions(supabase, bulletinText) {
   const { data: clients } = await supabase.from("clients").select("id, prenom, nom").limit(200)
   const clientList = (clients || []).map(c => c.id + ": " + c.prenom + " " + c.nom).join("\n")
-  const result = await gemini("Rapproche ce bulletin de commissions avec les clients.\nCLIENTS:\n" + clientList + "\nBULLETIN:\n" + bulletinText + "\nRetourne JSON: [{client_id,montant,type,periode,assureur,confidence}]", "JSON uniquement.")
+  const result = await gemini("Rapproche ce bulletin de commissions avec les clients.\nCLIENTS:\n" + clientList + "\nBULLETIN:\n" + bulletinText + "\nRetourne JSON: [{client_id,montant,type,periode,assureur,confidence}]", await loadSystemInstruction(supabase, "reconcile_commissions", "JSON uniquement."))
   try {
     const commissions = JSON.parse(result.replace(/```json\n?|\n?```/g, ""))
     for (const c of (Array.isArray(commissions) ? commissions : [])) {
@@ -97,7 +184,7 @@ async function reconcileCommissions(supabase, bulletinText) {
 async function ppeScreening(supabase, clientId) {
   const { data: client } = await supabase.from("clients").select("*").eq("id", clientId).single()
   if (!client) throw new Error("Client not found")
-  const result = await gemini("LCB-FT: " + client.prenom + " " + client.nom + " est-il PPE ou gel des avoirs? JSON: {isPPE,isGelDesAvoirs,confidence,details,action}", "JSON uniquement.")
+  const result = await gemini("LCB-FT: " + client.prenom + " " + client.nom + " est-il PPE ou gel des avoirs? JSON: {isPPE,isGelDesAvoirs,confidence,details,action}", await loadSystemInstruction(supabase, "ppe_screening", "JSON uniquement."))
   let screening
   try { screening = JSON.parse(result.replace(/```json\n?|\n?```/g, "")) }
   catch { screening = { isPPE: false, isGelDesAvoirs: false, confidence: 0, details: result, action: "normal" } }
@@ -210,7 +297,7 @@ serve(async (req) => {
       case "gel_avoirs_screening": result = await gelAvoirsScreening(supabase, params.client_id); break
       case "client_query":
         const { data: client } = await supabase.from("clients").select("*").eq("id", params.client_id).single()
-        result = await gemini("Client: " + JSON.stringify(client) + "\nQuestion: " + params.prompt, "Assistant EJ Assurances. Francais, concis.")
+        result = await gemini("Client: " + JSON.stringify(client) + "\nQuestion: " + params.prompt, await loadSystemInstruction(supabase, "client_query", "Assistant EJ Assurances. Francais, concis."))
         break
       default: throw new Error("Unknown action: " + action)
     }
