@@ -64,6 +64,20 @@ const T = {
   workflow_step_3: (d) => ({ subject: "Recueil a signer - EJ Assurances", html: "<p>Bonjour " + d.prenom + ", <a href='" + (d.esignature_link||'#') + "'>Signer recueil</a></p>" }),
   workflow_step_4: (d) => ({ subject: "Souscription - EJ Assurances", html: "<p>Bonjour " + d.prenom + ", <a href='" + (d.souscription_link||'#') + "'>Souscrire</a></p>" }),
   invite_espace_client: (d) => ({ subject: "Espace client - EJ Assurances", html: "<p>Bonjour " + d.prenom + ", <a href='" + d.invite_link + "'>Acceder</a></p>" }),
+  // Alerte interne (courtier) : nom client, nature de l'action, ancien/nouveau document
+  // si applicable, lien direct vers le dossier Drive du client.
+  staff_alert: (d) => ({
+    subject: "[EJ Assurances] " + (d.nature || "Action a verifier") + " - " + (d.full_name || "client"),
+    html:
+      "<p><strong>Client :</strong> " + (d.full_name || "-") + "</p>"
+      + "<p><strong>Action :</strong> " + (d.nature || "-") + "</p>"
+      + ((d.ancien_document || d.nouveau_document)
+          ? "<p><strong>Document :</strong> "
+            + (d.ancien_document ? ("ancien &laquo; " + d.ancien_document + " &raquo; &rarr; ") : "")
+            + "nouveau &laquo; " + (d.nouveau_document || "-") + " &raquo;</p>"
+          : "")
+      + "<p><a href=\"" + (d.google_drive_folder_url || "#") + "\">Ouvrir le dossier Drive du client</a></p>",
+  }),
 }
 
 serve(async (req) => {
