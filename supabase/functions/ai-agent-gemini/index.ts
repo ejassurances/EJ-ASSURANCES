@@ -106,6 +106,92 @@ async function ppeScreening(supabase, clientId) {
   return screening
 }
 
+// Normalisation pour le rapprochement flou (identique à sync-gel-avoirs).
+function normalizeName(s) {
+  return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim()
+}
+
+// Criblage « gel des avoirs » (LCB-FT) : rapprochement flou pg_trgm client ↔ registre,
+// Gemini en SOUTIEN uniquement pour trancher les cas ambigus (homonymes).
+// Exigence Trésor : une trace est TOUJOURS écrite dans compliance_checks, même sans correspondance.
+async function gelAvoirsScreening(supabase, clientId) {
+  const { data: client } = await supabase.from("clients").select("id, full_name, date_naissance").eq("id", clientId).single()
+  if (!client) throw new Error("Client not found")
+  const search = normalizeName(client.full_name || "")
+  const clientYear = client.date_naissance ? new Date(client.date_naissance).getUTCFullYear() : null
+
+  let candidates = []
+  if (search) {
+    const { data: matches } = await supabase.rpc("match_gel_avoirs", { p_search: search, p_threshold: 0.35 })
+    candidates = matches || []
+  }
+
+  let decision = "no_match" // no_match | confirmed_match | potential_match | review
+  let method = "trgm"
+  let geminiVerdict = null
+
+  if (candidates.length > 0) {
+    const top = candidates[0]
+    const dobMatch = clientYear && Array.isArray(top.annees_naissance) ? top.annees_naissance.includes(clientYear) : null
+    const strong = top.score >= 0.8 && (dobMatch === true || (dobMatch === null && candidates.length === 1))
+    if (strong) {
+      decision = "confirmed_match"
+    } else {
+      // Cas ambigu → Gemini en soutien (jamais seule autorité).
+      method = "trgm+gemini"
+      try {
+        const prompt = "Criblage gel des avoirs (LCB-FT). Client CRM: "
+          + JSON.stringify({ nom: client.full_name, annee_naissance: clientYear })
+          + "\nCandidats du registre national (rapprochement flou): "
+          + JSON.stringify(candidates.map((c) => ({ id: c.id_registre, nom: c.nom, nature: c.nature, score: c.score, annees: c.annees_naissance, nationalites: c.nationalites })))
+          + "\nMême personne ou homonyme ? Réponds STRICTEMENT en JSON: "
+          + '{"decision":"match|no_match|review","id_registre":<id|null>,"confidence":0..1,"rationale":"..."}'
+        const raw = await gemini(prompt, "Expert conformité LCB-FT. JSON strict uniquement. En cas de doute, 'review'.")
+        geminiVerdict = JSON.parse(raw.replace(/```json\n?|\n?```/g, ""))
+        decision = geminiVerdict?.decision === "match" ? "potential_match"
+          : geminiVerdict?.decision === "no_match" ? "no_match" : "review"
+      } catch (e) {
+        geminiVerdict = { error: "gemini_failed", detail: String(e) }
+        decision = "review" // échec Gemini → prudence, revue manuelle
+      }
+    }
+  }
+
+  const hit = decision !== "no_match"
+  const result = {
+    match: hit,
+    decision,
+    method,
+    threshold: 0.35,
+    client_name: client.full_name,
+    client_birth_year: clientYear,
+    candidates_count: candidates.length,
+    candidates: candidates.slice(0, 10),
+    gemini_verdict: geminiVerdict,
+    screened_at: new Date().toISOString(),
+  }
+
+  // Trace OBLIGATOIRE (même sans correspondance) — exigence Trésor.
+  await supabase.from("compliance_checks").insert({
+    client_id: clientId,
+    type: "gel_avoirs_screening",
+    result,
+    checked_by: method === "trgm" ? "auto-trgm" : "auto-trgm+gemini",
+    checked_at: new Date().toISOString(),
+  })
+
+  if (decision === "confirmed_match" || decision === "potential_match") {
+    await supabase.from("tasks").insert({
+      client_id: clientId,
+      title: "GEL DES AVOIRS — correspondance registre à vérifier",
+      status: "en_cours", priority: "haute", assigned_to: "erwan",
+      due_date: new Date(Date.now() + 3600000).toISOString(),
+      notes: JSON.stringify(result).slice(0, 2000),
+    })
+  }
+  return result
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS })
   const auth = await requireAuth(req)
@@ -121,6 +207,7 @@ serve(async (req) => {
       case "analyze_email": result = await analyzeEmail(supabase, params.gmail_message_id, params.client_id); break
       case "reconcile_commissions": result = await reconcileCommissions(supabase, params.bulletin_text); break
       case "ppe_screening": result = await ppeScreening(supabase, params.client_id); break
+      case "gel_avoirs_screening": result = await gelAvoirsScreening(supabase, params.client_id); break
       case "client_query":
         const { data: client } = await supabase.from("clients").select("*").eq("id", params.client_id).single()
         result = await gemini("Client: " + JSON.stringify(client) + "\nQuestion: " + params.prompt, "Assistant EJ Assurances. Francais, concis.")
