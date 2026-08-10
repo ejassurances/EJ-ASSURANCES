@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { AcprDocument, ClientAcprFolder } from "@/components/client-acpr-folder";
+import { ProspectDocumentUpload } from "./ProspectDocumentUpload";
 import { CurrentUser } from "@/lib/auth";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import {
@@ -25,6 +26,8 @@ interface Props {
   acprDocuments: AcprDocument[];
   lettres: LettreMissionSummary[];
   user: CurrentUser;
+  driveFolderId?: string | null;
+  pieceStatuses?: Partial<Record<string, "processing" | "received">>;
 }
 
 const PRODUCT_LABEL: Record<string, string> = {
@@ -104,7 +107,7 @@ function Row({ label, sub, right }: {
   );
 }
 
-export function ClientDashboard({ acprDocuments, lettres, user }: Props) {
+export function ClientDashboard({ acprDocuments, lettres, user, driveFolderId, pieceStatuses }: Props) {
   const [tab, setTab] = useState<Tab>("documents");
   const firstName = user.fullName.split(" ")[0];
 
@@ -144,7 +147,15 @@ export function ClientDashboard({ acprDocuments, lettres, user }: Props) {
         ))}
       </div>
 
-      {tab === "documents" && <ClientAcprFolder documents={acprDocuments} />}
+      {tab === "documents" && (
+        <div style={{ display: "grid", gap: "18px" }}>
+          <ProspectDocumentUpload
+            clientFolderId={driveFolderId ?? null}
+            initialStatuses={pieceStatuses as never}
+          />
+          <ClientAcprFolder documents={acprDocuments} />
+        </div>
+      )}
 
       {tab === "lettres" && (
         <SectionCard icon={FileSignature} title="Lettres de mission">
