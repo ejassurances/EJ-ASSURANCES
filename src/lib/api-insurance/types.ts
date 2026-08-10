@@ -47,7 +47,8 @@ export interface QuoteDocument {
 // Devis normalisé : format de sortie unifié (§3 des specs).
 export interface NormalizedQuote {
   partner: string; // "Néoliane"
-  product: string; // nom de la formule/produit
+  product: string; // nom commercial normalisé de la formule/produit
+  riskType?: RiskType; // gamme validée (garantie d'intégrité de bout en bout)
   propositionId?: string; // identifiant côté partenaire (pour récupérer le PDF)
   monthlyPremium: number | null; // prime mensuelle
   annualPremium: number | null; // prime annuelle

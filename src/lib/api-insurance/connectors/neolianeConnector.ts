@@ -117,10 +117,56 @@ async function authedFetch(path: string, init: RequestInit = {}): Promise<Respon
 
 // ── Mapping prospect → payload Néoliane ──────────────────────────────────────
 // Volontairement minimal et centralisé ; à compléter selon la doc tarification.
+// ── Routage strict par gamme (isolation riskType) ────────────────────────────
+// Chaque risque interroge EXCLUSIVEMENT l'endpoint de SA gamme Néoliane ; la
+// réponse est ensuite filtrée pour ne conserver que les produits de cette gamme,
+// actifs et autorisés sur le code courtier EJ Assurances. Aucun mélange possible.
+interface GammeConfig {
+  path: string; // endpoint tarification isolé (paramétrable par env)
+  label: string; // libellé commercial par défaut de la gamme
+  // Signatures acceptées dans la réponse (gamme / famille / produit), normalisées.
+  families: string[];
+}
+
+const GAMMES: Record<"sante" | "prevoyance" | "emprunteur", GammeConfig> = {
+  sante: {
+    path: process.env.NEOLIANE_TARIF_PATH_SANTE ?? "/neoverse/public/sante/tarification",
+    label: "Néoliane Santé",
+    families: ["sante", "complementaire sante", "mutuelle"],
+  },
+  prevoyance: {
+    path: process.env.NEOLIANE_TARIF_PATH_PREVOYANCE ?? "/neoverse/public/prevoyance/tarification",
+    label: "Néoliane Prévoyance",
+    families: ["prevoyance", "ij", "indemnites journalieres", "obseques", "hospitalisation"],
+  },
+  emprunteur: {
+    path: process.env.NEOLIANE_TARIF_PATH_EMPRUNTEUR ?? "/neoverse/public/emprunteur/tarification",
+    label: "Néoliane Emprunteur",
+    families: ["emprunteur", "assurance emprunteur", "assurance de pret", "adp"],
+  },
+};
+
+// Gammes Néoliane réellement exposées via Extraverse.
+const SUPPORTED_RISKS: RiskType[] = ["sante", "prevoyance", "emprunteur"];
+
+function gammeFor(riskType: RiskType): GammeConfig | null {
+  return riskType in GAMMES ? GAMMES[riskType as keyof typeof GAMMES] : null;
+}
+
+// Normalisation pour comparaison : minuscule, sans accents, espaces compactés.
+function norm(s: unknown): string {
+  return String(s ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function toNeolianePayload(prospect: ProspectData): Record<string, unknown> {
   return {
     // Champs libres spécifiques au risque transmis tels quels, puis les champs
-    // de base normalisés et la clé API utilisateur.
+    // de base normalisés, la clé API utilisateur et le code courtier.
     ...prospect,
     prenom: prospect.prenom,
     nom: prospect.nom,
@@ -128,11 +174,60 @@ function toNeolianePayload(prospect: ProspectData): Record<string, unknown> {
     dateNaissance: prospect.dateNaissance,
     codePostal: prospect.codePostal,
     userApiKey: userApiKey(),
+    // Restreint la tarification aux produits autorisés sur le code courtier EJ.
+    codeCourtier: process.env.NEOLIANE_COURTIER_CODE,
   };
 }
 
+// Nom commercial propre : « <Gamme> - <Formule> »
+// (ex. "Néoliane Emprunteur - Formule Confort").
+function commercialName(p: Record<string, unknown>, gamme: GammeConfig): string {
+  const gammeLabel = String(p.libelleGamme ?? p.nomGamme ?? gamme.label).trim();
+  const formule = String(p.nomProduit ?? p.libelleProduit ?? p.libelle ?? p.formule ?? "").trim();
+  const base = norm(gammeLabel).includes("neoliane") ? gammeLabel : `Néoliane ${gammeLabel}`;
+  return formule ? `${base} - ${formule}` : base;
+}
+
+// Filtre d'intégrité : la proposition appartient-elle EXACTEMENT à la gamme
+// demandée ? (fail-safe : sans aucun signal de gamme, on rejette).
+function belongsToGamme(p: Record<string, unknown>, gamme: GammeConfig): boolean {
+  const signals = [
+    p.libelleGamme,
+    p.nomGamme,
+    p.gamme,
+    p.famille,
+    p.nomProduit,
+    p.libelleProduit,
+    p.libelle,
+    p.riskType,
+    p.type,
+  ]
+    .map(norm)
+    .filter(Boolean);
+  if (!signals.length) return false;
+  return signals.some((sig) => gamme.families.some((fam) => sig.includes(fam)));
+}
+
+// Produit actif / autorisé : rejette uniquement si la réponse marque
+// explicitement l'inactivité ou la non-autorisation.
+function isActiveForCourtier(p: Record<string, unknown>): boolean {
+  const inactive =
+    p.actif === false ||
+    p.isActive === false ||
+    p.active === false ||
+    p.autorise === false ||
+    p.disabled === true ||
+    norm(p.statut) === "inactif" ||
+    norm(p.status) === "inactive";
+  return !inactive;
+}
+
 // Normalise une proposition Néoliane vers le format de sortie unifié.
-function normalizeProposition(p: Record<string, unknown>): NormalizedQuote {
+function normalizeProposition(
+  p: Record<string, unknown>,
+  riskType: RiskType,
+  gamme: GammeConfig,
+): NormalizedQuote {
   const monthly = pickNumber(p, ["cotisationMensuelle", "prime_mensuelle", "monthly"]);
   const annual =
     pickNumber(p, ["cotisationAnnuelle", "prime_annuelle", "annual"]) ??
@@ -140,7 +235,8 @@ function normalizeProposition(p: Record<string, unknown>): NormalizedQuote {
 
   return {
     partner: "Néoliane",
-    product: String(p.libelle ?? p.formule ?? p.product ?? "Formule Néoliane"),
+    product: commercialName(p, gamme),
+    riskType,
     propositionId: p.id != null ? String(p.id) : p.propositionId != null ? String(p.propositionId) : undefined,
     monthlyPremium: monthly,
     annualPremium: annual,
@@ -160,12 +256,22 @@ function pickNumber(obj: Record<string, unknown>, keys: string[]): number | null
 }
 
 /**
- * Interroge l'endpoint de tarification Néoliane (Santé / Prévoyance) et renvoie
- * les propositions normalisées (formules + cotisations).
+ * Interroge l'endpoint de tarification de la gamme correspondant STRICTEMENT au
+ * riskType (Santé / Prévoyance / Emprunteur). La réponse est filtrée pour ne
+ * conserver que les produits de cette gamme, actifs et autorisés sur le code
+ * courtier EJ Assurances, puis normalisée (nom commercial + cotisations).
  */
-export async function getTarifs(prospectData: ProspectData): Promise<NormalizedQuote[]> {
-  const path = process.env.NEOLIANE_TARIF_PATH ?? "/neoverse/public/tarificateur";
-  const res = await authedFetch(path, {
+export async function getTarifs(
+  prospectData: ProspectData,
+  riskType: RiskType,
+): Promise<NormalizedQuote[]> {
+  const gamme = gammeFor(riskType);
+  if (!gamme) {
+    // Gamme non exposée par Néoliane → aucune requête (isolation stricte).
+    return [];
+  }
+
+  const res = await authedFetch(gamme.path, {
     method: "POST",
     body: JSON.stringify(toNeolianePayload(prospectData)),
   });
@@ -173,7 +279,7 @@ export async function getTarifs(prospectData: ProspectData): Promise<NormalizedQ
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     const detail = (data && (data.message || data.error)) || `HTTP ${res.status}`;
-    throw new Error(`Néoliane : tarification échouée (${detail}).`);
+    throw new Error(`Néoliane : tarification ${riskType} échouée (${detail}).`);
   }
 
   const propositions: Record<string, unknown>[] = Array.isArray(data)
@@ -184,7 +290,10 @@ export async function getTarifs(prospectData: ProspectData): Promise<NormalizedQ
         ? data.data
         : [];
 
-  return propositions.map(normalizeProposition);
+  // Verrou d'intégrité : gamme exacte + actif/autorisé courtier, PUIS normalisation.
+  return propositions
+    .filter((p) => belongsToGamme(p, gamme) && isActiveForCourtier(p))
+    .map((p) => normalizeProposition(p, riskType, gamme));
 }
 
 /**
@@ -218,8 +327,8 @@ export const neolianeConnector: InsuranceConnector = {
   label: "Néoliane",
 
   supports(riskType: RiskType): boolean {
-    // Néoliane Extraverse : Santé & Prévoyance.
-    return riskType === "sante" || riskType === "prevoyance";
+    // Néoliane Extraverse : Santé, Prévoyance, Emprunteur (gammes isolées).
+    return SUPPORTED_RISKS.includes(riskType);
   },
 
   isEnabled(): boolean {
@@ -227,7 +336,7 @@ export const neolianeConnector: InsuranceConnector = {
   },
 
   async getQuotes(req: TarificationRequest): Promise<NormalizedQuote[]> {
-    const quotes = await getTarifs(req.prospect);
+    const quotes = await getTarifs(req.prospect, req.riskType);
 
     // Enrichit chaque devis avec son PDF (non bloquant : un échec PDF ne perd
     // pas la proposition tarifaire).
