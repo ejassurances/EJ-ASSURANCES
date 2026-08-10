@@ -23,11 +23,13 @@ function checked(formData: FormData, key: string) {
 async function forwardToWebhook(payload: Record<string, string>) {
   const webhookUrl = process.env.CONTACT_WEBHOOK_URL;
   if (!webhookUrl) return;
+  // Jeton partagé : l'endpoint Apps Script rejette toute requête sans le bon token.
+  const token = process.env.CONTACT_WEBHOOK_TOKEN;
   try {
     await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(token ? { ...payload, token } : payload),
     });
   } catch (err) {
     console.error("[contact] webhook forward échoué:", err);
