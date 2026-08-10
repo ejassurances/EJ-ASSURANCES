@@ -2,6 +2,20 @@
 // Utilise l'API Gmail via Google Workspace service account
 // Approche légère sans dépendances lourdes (pas de googleapis SDK)
 
+import {
+  extractReference,
+  subjectWithReference,
+  MAIL_FOLLOWUP_FOOTER_HTML,
+} from "@/lib/crm/reference";
+
+// Règle de nomenclature EJ : pied de mail systématique injecté avant </body>.
+function injectFollowupFooter(html: string): string {
+  if (html.includes(MAIL_FOLLOWUP_FOOTER_HTML)) return html; // déjà présent
+  return html.includes("</body>")
+    ? html.replace("</body>", `${MAIL_FOLLOWUP_FOOTER_HTML}\n</body>`)
+    : html + MAIL_FOLLOWUP_FOOTER_HTML;
+}
+
 // ─────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────
@@ -114,17 +128,23 @@ async function sendEmailViaGmail(
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
     const senderEmail = process.env.GMAIL_SENDER_EMAIL ?? 'noreply@ej-assurances.fr';
-    
+
+    // Nomenclature EJ : préfixe [Réf : EJ-…] si une référence est présente
+    // (sujet ou corps), et pied de mail de suivi systématique.
+    const reference = extractReference(subject) ?? extractReference(html);
+    const finalSubject = reference ? subjectWithReference(subject, reference) : subject;
+    const finalHtml = injectFollowupFooter(html);
+
     // Créer le message
     const message = [
       `From: ${senderEmail}`,
       `To: ${to.join(', ')}`,
       'Content-Type: text/html; charset=utf-8',
       'MIME-Version: 1.0',
-      `Subject: ${subject}`,
+      `Subject: ${finalSubject}`,
       replyTo ? `Reply-To: ${replyTo}` : '',
       '',
-      html,
+      finalHtml,
     ]
       .filter(Boolean)
       .join('\r\n');
