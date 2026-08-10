@@ -118,10 +118,22 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
             </label>
           </div>
 
-          <label className="flex gap-3 text-sm leading-6 text-[#475569]">
-            <input name="consent" type="checkbox" required className="mt-1 size-4 accent-[#3B82F6]" />
-            J'accepte d'être recontacté par EJ Partners Assurances au sujet de ma demande.
-          </label>
+          <div className="grid gap-3">
+            <label className="flex gap-3 text-sm leading-6 text-[#475569]">
+              <input name="acceptCgu" type="checkbox" required className="mt-1 size-4 shrink-0 accent-[#3B82F6]" />
+              J'accepte les Conditions Générales d'Utilisation et la Politique de Confidentialité. *
+            </label>
+            <label className="flex gap-3 text-sm leading-6 text-[#475569]">
+              <input name="acceptRgpd" type="checkbox" required className="mt-1 size-4 shrink-0 accent-[#3B82F6]" />
+              J'accepte que mes données personnelles soient traitées par le cabinet EJ Assurances pour
+              l'étude de ma demande d'assurance. *
+            </label>
+            <label className="flex gap-3 text-sm leading-6 text-[#475569]">
+              <input name="acceptContactPartenaires" type="checkbox" className="mt-1 size-4 shrink-0 accent-[#3B82F6]" />
+              J'accepte d'être recontacté(e) par un membre du cabinet EJ Assurances ou l'un de ses
+              partenaires pour le suivi de mon dossier.
+            </label>
+          </div>
 
           <button type="submit" className="btn-primary mt-2 w-full text-white">
             Envoyer ma demande

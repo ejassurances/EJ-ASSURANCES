@@ -20,7 +20,7 @@ function checked(formData: FormData, key: string) {
 // Transmet le lead au webhook externe (Apps Script) en parallèle du CRM.
 // URL configurée côté serveur via CONTACT_WEBHOOK_URL ; si absente, on ignore
 // silencieusement (le CRM reste la source de vérité). Non bloquant.
-async function forwardToWebhook(payload: Record<string, string>) {
+async function forwardToWebhook(payload: Record<string, string | boolean>) {
   const webhookUrl = process.env.CONTACT_WEBHOOK_URL;
   if (!webhookUrl) return;
   // Jeton partagé : l'endpoint Apps Script rejette toute requête sans le bon token.
@@ -59,10 +59,15 @@ export async function createContactIntakeAction(formData: FormData) {
   // Le type d'assurance recherché devient le « besoin » exprimé côté CRM.
   const need = typeAssurance || value(formData, "need");
   const message = value(formData, "message");
-  const partnerConsent = checked(formData, "partnerConsent");
-  const recontactConsent = checked(formData, "consent");
+  // Consentements RGPD : CGU + traitement des données obligatoires ;
+  // recontact cabinet/partenaires facultatif.
+  const acceptCgu = checked(formData, "acceptCgu");
+  const acceptRgpd = checked(formData, "acceptRgpd");
+  const acceptContactPartenaires = checked(formData, "acceptContactPartenaires");
+  const recontactConsent = acceptContactPartenaires;
+  const partnerConsent = acceptContactPartenaires;
 
-  if (!fullName || !email || !phone || !typeAssurance || !recontactConsent) {
+  if (!fullName || !email || !phone || !typeAssurance || !acceptCgu || !acceptRgpd) {
     redirect("/contact?error=missing");
   }
 
@@ -75,6 +80,9 @@ export async function createContactIntakeAction(formData: FormData) {
     telephone: phone,
     typeAssurance,
     message,
+    acceptCgu,
+    acceptRgpd,
+    acceptContactPartenaires,
   });
 
   const siteUrl =
@@ -167,22 +175,34 @@ export async function createContactIntakeAction(formData: FormData) {
     .select("id")
     .single();
 
+  const now = new Date().toISOString();
   await supabase.from("client_consents").insert([
     {
       assessment_id: assessment?.id ?? null,
       client_id: client.id,
-      consent_type: "cabinet_recontact",
-      consent_text: "J'accepte d'etre recontacte par EJ Assurances pour analyser ma situation.",
-      accepted: true,
-      accepted_at: new Date().toISOString(),
+      consent_type: "cgu_confidentialite",
+      consent_text:
+        "J'accepte les Conditions Generales d'Utilisation et la Politique de Confidentialite.",
+      accepted: acceptCgu,
+      accepted_at: acceptCgu ? now : null,
+    },
+    {
+      assessment_id: assessment?.id ?? null,
+      client_id: client.id,
+      consent_type: "rgpd_traitement_donnees",
+      consent_text:
+        "J'accepte que mes donnees personnelles soient traitees par le cabinet EJ Assurances pour l'etude de ma demande d'assurance.",
+      accepted: acceptRgpd,
+      accepted_at: acceptRgpd ? now : null,
     },
     {
       assessment_id: assessment?.id ?? null,
       client_id: client.id,
       consent_type: "partner_recontact",
-      consent_text: "J'accepte d'etre recontacte par EJ Assurances ou l'un de ses partenaires.",
-      accepted: partnerConsent,
-      accepted_at: partnerConsent ? new Date().toISOString() : null,
+      consent_text:
+        "J'accepte d'etre recontacte par un membre du cabinet EJ Assurances ou l'un de ses partenaires pour le suivi de mon dossier.",
+      accepted: acceptContactPartenaires,
+      accepted_at: acceptContactPartenaires ? now : null,
     },
   ]);
 
