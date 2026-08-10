@@ -45,56 +45,78 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
         </div>
 
         <form action={createContactIntakeAction} className="glass-card grid gap-5 p-6 sm:p-8">
+          <div>
+            <h2 className="text-2xl font-black text-[#0F172A]">Demande d'étude personnalisée</h2>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Remplissez ce formulaire pour qu'un conseiller analyse vos besoins.
+            </p>
+          </div>
+
           {success && (
-            <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-200">
-              Votre demande est enregistrée. Le cabinet revient vers vous rapidement.
+            <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-700">
+              Votre demande est enregistrée. Un conseiller revient vers vous rapidement.
             </p>
           )}
           {error && (
-            <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm font-semibold text-red-200">
+            <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm font-semibold text-red-700">
               Impossible d'enregistrer la demande pour le moment. Vous pouvez aussi nous contacter par téléphone.
             </p>
           )}
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2 text-sm font-semibold text-[#475569]">
-              Nom
-              <input name="name" required className="navy-input" placeholder="Votre nom" />
+              Prénom *
+              <input name="firstName" required className="navy-input" placeholder="Jean" />
             </label>
             <label className="grid gap-2 text-sm font-semibold text-[#475569]">
-              Prénom
-              <input name="firstName" className="navy-input" placeholder="Votre prénom" />
+              Nom *
+              <input name="name" required className="navy-input" placeholder="Dupont" />
             </label>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2 text-sm font-semibold text-[#475569]">
-              Email
-              <input name="email" type="email" required className="navy-input" placeholder="vous@exemple.fr" />
+              E-mail *
+              <input name="email" type="email" required className="navy-input" placeholder="jean.dupont@email.com" />
             </label>
             <label className="grid gap-2 text-sm font-semibold text-[#475569]">
-              Téléphone
-              <input name="phone" type="tel" className="navy-input" placeholder="01.89.31.40.29" />
+              Téléphone *
+              <input name="phone" type="tel" required className="navy-input" placeholder="06 12 34 56 78" />
             </label>
           </div>
 
           <label className="grid gap-2 text-sm font-semibold text-[#475569]">
-            Montant du prêt ou patrimoine concerné
-            <input name="loanAmount" inputMode="decimal" className="navy-input" placeholder="Ex. 320000" />
+            Type d'assurance recherchée *
+            <select name="typeAssurance" required defaultValue="" className="navy-input">
+              <option value="" disabled>
+                -- Sélectionnez une option --
+              </option>
+              <option value="Mutuelle Santé">Mutuelle / Complémentaire Santé</option>
+              <option value="Prévoyance">Prévoyance &amp; Protection Sociale</option>
+              <option value="Assurance Auto / Flotte">Assurance Auto / Flotte</option>
+              <option value="Assurance Habitation / Immeuble">Assurance Habitation / Immeuble</option>
+              <option value="RC Professionnelle / Multirisque">RC Professionnelle / Multirisque Pro</option>
+              <option value="Autre">Autre demande</option>
+            </select>
           </label>
 
           <label className="grid gap-2 text-sm font-semibold text-[#475569]">
-            Message
+            Précisions sur vos besoins
             <textarea
               name="message"
+              rows={4}
               className="navy-input min-h-36 resize-y"
-              placeholder="Votre projet, votre banque, votre assurance actuelle, ou votre situation de parent social / enfant à protéger..."
+              placeholder="Décrivez succinctement votre situation actuelle, votre budget ou vos attentes..."
             />
           </label>
 
-          <input type="hidden" name="familySituation" value="Diagnostic protection familiale" />
-          <input type="hidden" name="need" value="Assurance emprunteur ou transmission parent social" />
-          <input type="hidden" name="urgency" value="Projet en cours" />
+          {/* Champ piège anti-bot : invisible pour les humains, ignoré côté serveur. */}
+          <div className="hidden" aria-hidden="true">
+            <label>
+              Ne pas remplir
+              <input name="company_url" type="text" tabIndex={-1} autoComplete="off" />
+            </label>
+          </div>
 
           <label className="flex gap-3 text-sm leading-6 text-[#475569]">
             <input name="consent" type="checkbox" required className="mt-1 size-4 accent-[#3B82F6]" />

@@ -17,26 +17,63 @@ function checked(formData: FormData, key: string) {
   return formData.get(key) === "on";
 }
 
+// Transmet le lead au webhook externe (Apps Script) en parallèle du CRM.
+// URL configurée côté serveur via CONTACT_WEBHOOK_URL ; si absente, on ignore
+// silencieusement (le CRM reste la source de vérité). Non bloquant.
+async function forwardToWebhook(payload: Record<string, string>) {
+  const webhookUrl = process.env.CONTACT_WEBHOOK_URL;
+  if (!webhookUrl) return;
+  try {
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error("[contact] webhook forward échoué:", err);
+  }
+}
+
 export async function createContactIntakeAction(formData: FormData) {
+  // Anti-spam : honeypot (champ invisible rempli uniquement par les bots).
+  if (value(formData, "company_url")) {
+    redirect("/contact?success=1");
+  }
+
   const supabase = createSupabaseServiceClient();
 
   if (!supabase) {
     redirect("/contact?error=configuration");
   }
 
-  const fullName = value(formData, "name");
+  const firstName = value(formData, "firstName");
+  const lastName = value(formData, "name");
+  const fullName = `${firstName} ${lastName}`.trim();
   const email = value(formData, "email").toLowerCase();
   const phone = value(formData, "phone");
+  const typeAssurance = value(formData, "typeAssurance");
   const familySituation = value(formData, "familySituation");
   const urgency = value(formData, "urgency");
-  const need = value(formData, "need");
+  // Le type d'assurance recherché devient le « besoin » exprimé côté CRM.
+  const need = typeAssurance || value(formData, "need");
   const message = value(formData, "message");
   const partnerConsent = checked(formData, "partnerConsent");
   const recontactConsent = checked(formData, "consent");
 
-  if (!fullName || !email || !recontactConsent) {
+  if (!fullName || !email || !phone || !typeAssurance || !recontactConsent) {
     redirect("/contact?error=missing");
   }
+
+  // « Les deux » : on transmet le lead au webhook externe ET on alimente le CRM.
+  // Le webhook part dès la validation, indépendamment du résultat du pipeline CRM.
+  await forwardToWebhook({
+    prenom: firstName,
+    nom: lastName,
+    email,
+    telephone: phone,
+    typeAssurance,
+    message,
+  });
 
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ??
