@@ -16,7 +16,7 @@ function getClientIp(req: NextRequest): string {
 }
 
 function isValidEmail(value: unknown): value is string {
-  return typeof value === "string" && value.length <= 320 && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value);
+  return typeof value === "string" && value.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function isValidIdempotencyKey(value: string | null): value is string {
