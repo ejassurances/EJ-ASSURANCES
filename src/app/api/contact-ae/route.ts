@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { isRateLimited } from "@/lib/rate-limit";
-import { timingSafeEqual } from "node:crypto";
 
 const ENDPOINT = "contact-ae";
 const MAX_BODY_BYTES = 64 * 1024;
@@ -14,13 +13,6 @@ function getClientIp(req: NextRequest): string {
     req.headers.get("x-real-ip") ||
     "unknown"
   );
-}
-
-function safeSecretEquals(value: string | null, expected: string | undefined): boolean {
-  if (!value || !expected) return false;
-  const a = Buffer.from(value);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function isValidEmail(value: unknown): value is string {
