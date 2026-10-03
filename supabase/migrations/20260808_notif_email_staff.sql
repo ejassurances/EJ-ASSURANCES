@@ -53,12 +53,12 @@ $$;
 
 -- Documents « majeurs » — LISTE FERMÉE (valeurs réellement utilisées, cf. code :
 -- KYC_DOCUMENT_TYPES + document_key des exigences projet). Match exact (insensible
--- à la casse), pas de mots-clés.
+-- à la casse), pas de mots-clés. Liste alignée sur la décision DG appliquée en base.
 --   rib                            → RIB / IBAN
 --   identity                       → CNI / passeport (pièce d'identité)
 --   current_insurance_certificate  → Contrat / notice assurance actuelle
---   carte_grise                    → Carte grise (⚠️ non présente à ce jour dans le
---                                     schéma/code ; incluse par anticipation).
+--   subscription_confirmation      → Validation compagnie / certificat d'adhésion
+--   loan_offer                     → Offre de prêt
 create or replace function public.is_major_doc_type(t text) returns boolean
 language sql immutable
 as $$
@@ -66,7 +66,8 @@ as $$
     'rib',
     'identity',
     'current_insurance_certificate',
-    'carte_grise'
+    'subscription_confirmation',
+    'loan_offer'
   ]);
 $$;
 
